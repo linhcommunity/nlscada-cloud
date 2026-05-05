@@ -1,0 +1,108 @@
+version: "3.9"
+
+# ============================================
+# Services hạ tầng cho NL SCADA Center v1.0
+# ============================================
+
+services:
+  # ------------------------------------------
+  # 1. EMQX Broker (MQTT Message Bus)
+  # ------------------------------------------
+  emqx:
+    image: emqx/emqx:5.7.2              # Phiên bản ổn định mới nhất
+    container_name: nlscada-emqx
+    restart: unless-stopped
+    environment:
+      - EMQX_NODE_NAME=emqx@node1        # Tên node trong cluster (đơn node)
+      # Tài khoản admin cho dashboard (tuỳ chọn, nếu muốn bảo mật)
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=Admin@123
+      # Cấu hình authentication (sẽ dùng file ACL để quản lý quyền truy cập)
+      # - EMQX_AUTHORIZATION__SOURCES__1__TYPE=file
+      # - EMQX_AUTHORIZATION__SOURCES__1__ENABLE=true
+      # - EMQX_AUTHORIZATION__SOURCES__1__PATH=/opt/emqx/etc/acl.conf
+    ports:
+      - "1883:1883"       # MQTT TCP
+      - "8883:8883"       # MQTT TLS (nếu cần)
+      - "18083:18083"     # Dashboard web
+    volumes:
+      - emqx_data:/opt/emqx/data
+      # Mount file cấu hình ACL (sẽ tạo ở Task 1.5)
+      # - ../configs/emqx/acl.conf:/opt/emqx/etc/acl.conf
+    networks:
+      - nlscada-net
+    healthcheck:
+      test: ["CMD", "emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ------------------------------------------
+  # 2. PostgreSQL (Metadata)
+  # ------------------------------------------
+  postgres:
+    image: postgres:16-alpine          # Alpine nhẹ, đủ dùng
+    container_name: nlscada-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nlscada             # Database chính
+      POSTGRES_USER: nlscada           # User chính
+      POSTGRES_PASSWORD: Nlscada@2025  # Mật khẩu (nhớ thay đổi khi production)
+    ports:
+      - "5432:5432"                    # Mở port để dev kết nối trực tiếp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Tự động chạy script init khi container lần đầu tạo
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - nlscada-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nlscada -d nlscada"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ------------------------------------------
+  # 3. InfluxDB (Time-series Data)
+  # ------------------------------------------
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: nlscada-influxdb
+    restart: unless-stopped
+    environment:
+      # Thiết lập ban đầu: username, password, org, bucket
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: Influx@2025
+      DOCKER_INFLUXDB_INIT_ORG: nlscada
+      DOCKER_INFLUXDB_INIT_BUCKET: nlscada_metrics
+      # Token admin (sẽ dùng để kết nối từ Core)
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-token
+    ports:
+      - "8086:8086"                    # HTTP API (query/write)
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_conf:/etc/influxdb2
+    networks:
+      - nlscada-net
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================
+# Volumes (dữ liệu bền vững)
+# ============================================
+volumes:
+  emqx_data:
+  pgdata:
+  influxdb_data:
+  influxdb_conf:
+
+# ============================================
+# Network chung cho toàn bộ dự án
+# ============================================
+networks:
+  nlscada-net:
+    driver: bridge
