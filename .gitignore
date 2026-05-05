@@ -30,3 +30,33 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+bin/
+
+# Node
+node_modules/
+dist/
+.env.local
+*.log
+
+# Docker
+.env
+docker-compose.override.yml
