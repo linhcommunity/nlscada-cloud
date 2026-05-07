@@ -7,7 +7,7 @@ import (
 // RealTimeUpdate là dữ liệu thời gian thực gửi từ Ingest đến WebSocket Hub
 type RealTimeUpdate struct {
 	Type      string                 `json:"type"` // "tag_update"
-	TenantID  uuid.UUID              `json:"tenant_id"`
+	SiteID    uuid.UUID              `json:"site_id"`
 	DeviceID  uuid.UUID              `json:"device_id"`
 	Timestamp int64                  `json:"timestamp"`
 	Tags      map[string]interface{} `json:"tags"`
@@ -16,7 +16,7 @@ type RealTimeUpdate struct {
 // MetadataEvent là sự kiện thay đổi metadata (tạo/xóa device, tag)
 type MetadataEvent struct {
 	Action   string      `json:"action"` // "device_created", "device_deleted", "tag_created", "tag_deleted"
-	TenantID uuid.UUID   `json:"tenant_id"`
+	SiteID   uuid.UUID   `json:"site_id"`
 	DeviceID uuid.UUID   `json:"device_id"`
 	TagID    *uuid.UUID  `json:"tag_id,omitempty"`
 	Payload  interface{} `json:"payload,omitempty"`

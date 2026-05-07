@@ -6,24 +6,30 @@ import (
 	"github.com/google/uuid"
 )
 
-type Tenant struct {
+type Site struct {
 	ID        uuid.UUID `json:"id"         db:"id"`
 	Name      string    `json:"name"       db:"name"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type User struct {
-	ID           uuid.UUID `json:"id"            db:"id"`
-	TenantID     uuid.UUID `json:"tenant_id"     db:"tenant_id"`
-	Email        string    `json:"email"         db:"email"`
-	PasswordHash string    `json:"-"             db:"password_hash"`
-	Role         string    `json:"role"          db:"role"`
-	CreatedAt    time.Time `json:"created_at"    db:"created_at"`
+	ID            uuid.UUID `json:"id"             db:"id"`
+	Email         string    `json:"email"          db:"email"`
+	PasswordHash  string    `json:"-"              db:"password_hash"`
+	EmailVerified bool      `json:"email_verified" db:"email_verified"`
+	CreatedAt     time.Time `json:"created_at"     db:"created_at"`
+}
+
+type Membership struct {
+	UserID    uuid.UUID `json:"user_id"    db:"user_id"`
+	SiteID    uuid.UUID `json:"site_id"    db:"site_id"`
+	Role      string    `json:"role"       db:"role"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type Device struct {
 	ID            uuid.UUID  `json:"id"              db:"id"`
-	TenantID      uuid.UUID  `json:"tenant_id"       db:"tenant_id"`
+	SiteID        uuid.UUID  `json:"site_id"         db:"site_id"`
 	Name          string     `json:"name"            db:"name"`
 	DeviceType    string     `json:"device_type"     db:"device_type"`
 	MqttClientID  *string    `json:"mqtt_client_id"  db:"mqtt_client_id"`
