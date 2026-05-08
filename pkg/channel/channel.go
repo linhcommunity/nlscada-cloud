@@ -6,7 +6,7 @@ import (
 
 // RealTimeUpdate là dữ liệu thời gian thực gửi từ Ingest đến WebSocket Hub
 type RealTimeUpdate struct {
-	Type      string                 `json:"type"` // "tag_update"
+	Type      string                 `json:"type"`
 	SiteID    uuid.UUID              `json:"site_id"`
 	DeviceID  uuid.UUID              `json:"device_id"`
 	Timestamp int64                  `json:"timestamp"`

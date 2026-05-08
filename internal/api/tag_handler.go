@@ -21,9 +21,27 @@ func NewTagHandler(store *postgres.Store) *TagHandler {
 
 // ListTags trả về tags của một device
 func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	deviceID, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, "invalid device id", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid device id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Kiểm tra device thuộc site của user
+	var siteID uuid.UUID
+	err = h.store.Pool.QueryRow(r.Context(), "SELECT site_id FROM devices WHERE id = $1", deviceID).Scan(&siteID)
+	if err != nil {
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if siteID != membership.SiteID {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
@@ -51,9 +69,27 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // CreateTag tạo tag mới
 func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	deviceID, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, "invalid device id", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid device id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Kiểm tra device thuộc site của user
+	var siteID uuid.UUID
+	err = h.store.Pool.QueryRow(r.Context(), "SELECT site_id FROM devices WHERE id = $1", deviceID).Scan(&siteID)
+	if err != nil {
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if siteID != membership.SiteID {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
@@ -64,7 +100,7 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Description string `json:"description,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -87,9 +123,29 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // UpdateTag cập nhật tag
 func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "tagID"))
 	if err != nil {
-		http.Error(w, "invalid tag id", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid tag id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Lấy device_id của tag và kiểm tra quyền
+	var deviceID, siteID uuid.UUID
+	err = h.store.Pool.QueryRow(r.Context(),
+		"SELECT t.device_id, d.site_id FROM tags t JOIN devices d ON t.device_id = d.id WHERE t.id = $1", id).
+		Scan(&deviceID, &siteID)
+	if err != nil {
+		http.Error(w, `{"error":"tag not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if siteID != membership.SiteID {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
@@ -100,11 +156,10 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description string `json:"description,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Cập nhật động các trường không rỗng (có thể dùng COALESCE)
 	var t models.Tag
 	err = h.store.Pool.QueryRow(r.Context(),
 		`UPDATE tags SET 
@@ -127,9 +182,28 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // DeleteTag xóa tag
 func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "tagID"))
 	if err != nil {
-		http.Error(w, "invalid tag id", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid tag id"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Kiểm tra quyền sở hữu tag
+	var siteID uuid.UUID
+	err = h.store.Pool.QueryRow(r.Context(),
+		"SELECT d.site_id FROM tags t JOIN devices d ON t.device_id = d.id WHERE t.id = $1", id).
+		Scan(&siteID)
+	if err != nil {
+		http.Error(w, `{"error":"tag not found"}`, http.StatusNotFound)
+		return
+	}
+	if siteID != membership.SiteID {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 

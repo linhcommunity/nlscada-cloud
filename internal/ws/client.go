@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"nlscada-cloud/internal/auth"
-
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -30,13 +28,29 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub     *Hub
-	conn    *websocket.Conn
-	send    chan []byte
-	userID  uuid.UUID
-	email   string
-	devices map[string]string // deviceID -> siteID
-	mu      sync.Mutex
+	hub         *Hub
+	conn        *websocket.Conn
+	send        chan []byte
+	userID      uuid.UUID
+	permissions map[string]string // key: siteID, value: role
+	mu          sync.Mutex
+}
+
+func (c *Client) loadPermissions() {
+	rows, err := c.hub.store.Pool.Query(context.Background(), // hoặc dùng context từ request
+		"SELECT site_id, role FROM memberships WHERE user_id = $1", c.userID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	c.permissions = make(map[string]string)
+	for rows.Next() {
+		var siteID uuid.UUID
+		var role string
+		if err := rows.Scan(&siteID, &role); err == nil {
+			c.permissions[siteID.String()] = role
+		}
+	}
 }
 
 func (c *Client) readPump() {
@@ -67,62 +81,26 @@ func (c *Client) readPump() {
 		}
 
 		switch msg.Action {
-		case "auth":
-			claims, err := auth.VerifyToken(c.hub.jwtSecret, msg.Token)
-			if err != nil {
-				c.send <- mustMarshal(ServerMessage{Type: "auth_error", Message: "invalid token"})
-				log.Printf("WS auth failed: %v", err)
-				return
+		case "sub":
+			if msg.SiteID == "" || msg.DeviceID == "" {
+				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "site_id and device_id required"})
+				continue
 			}
-			c.userID = claims.UserID
-			c.email = claims.Email
-			c.send <- mustMarshal(ServerMessage{Type: "auth_ok"})
-			log.Printf("WS client authenticated: user=%s", claims.UserID)
+			// Kiểm tra quyền
+			if _, ok := c.permissions[msg.SiteID]; !ok {
+				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "forbidden"})
+				continue
+			}
+			c.hub.subscribe <- subscription{client: c, siteID: msg.SiteID, deviceID: msg.DeviceID}
+			c.send <- mustMarshal(ServerMessage{Type: "sub_ok", SiteID: msg.SiteID, DeviceID: msg.DeviceID})
+			log.Printf("WS client subscribed to device %s in site %s", msg.DeviceID, msg.SiteID)
 
-		case "subscribe":
-			if c.userID == uuid.Nil {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "authenticate first"})
+		case "unsub":
+			if msg.SiteID == "" || msg.DeviceID == "" {
+				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "site_id and device_id required"})
 				continue
 			}
-			if msg.DeviceID == "" {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "device_id required"})
-				continue
-			}
-			// Kiểm tra xem device thuộc site nào và user có quyền không
-			var siteID, role string
-			err := c.hub.store.Pool.QueryRow(context.Background(),
-				`SELECT d.site_id, m.role 
-                 FROM devices d
-                 JOIN memberships m ON m.site_id = d.site_id AND m.user_id = $1
-                 WHERE d.id = $2`,
-				c.userID, msg.DeviceID,
-			).Scan(&siteID, &role)
-			if err != nil {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "access denied or device not found"})
-				continue
-			}
-
-			c.mu.Lock()
-			c.devices[msg.DeviceID] = siteID
-			c.mu.Unlock()
-			c.hub.subscribe <- subscription{client: c, siteID: siteID, deviceID: msg.DeviceID}
-			c.send <- mustMarshal(ServerMessage{Type: "subscribed", DeviceID: msg.DeviceID})
-
-		case "unsubscribe":
-			if msg.DeviceID == "" {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "device_id required"})
-				continue
-			}
-			c.mu.Lock()
-			siteID, ok := c.devices[msg.DeviceID]
-			if ok {
-				delete(c.devices, msg.DeviceID)
-			}
-			c.mu.Unlock()
-			if ok {
-				c.hub.unsubscribe <- subscription{client: c, siteID: siteID, deviceID: msg.DeviceID}
-				c.send <- mustMarshal(ServerMessage{Type: "unsubscribed", DeviceID: msg.DeviceID})
-			}
+			c.hub.unsubscribe <- subscription{client: c, siteID: msg.SiteID, deviceID: msg.DeviceID}
 		}
 	}
 }
@@ -130,4 +108,37 @@ func (c *Client) readPump() {
 func mustMarshal(v interface{}) []byte {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+func (c *Client) writePump() {
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			log.Printf("WS sending: %s", string(message)) // <-- thêm dòng này
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+			w.Write(message)
+			if err := w.Close(); err != nil {
+				return
+			}
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
 }

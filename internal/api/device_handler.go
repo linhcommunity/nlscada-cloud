@@ -19,17 +19,17 @@ func NewDeviceHandler(store *postgres.Store) *DeviceHandler {
 	return &DeviceHandler{store: store}
 }
 
-// ListDevices trả về tất cả devices của tenant hiện tại
+// ListDevices trả về tất cả devices thuộc site của user
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
-	claims := GetClaims(r)
-	if claims == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	siteID, _ := uuid.Parse(chi.URLParam(r, "siteID"))
+
 	rows, err := h.store.Pool.Query(r.Context(),
-		"SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at FROM devices WHERE site_id = $1",
-		siteID)
+		`SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at 
+		 FROM devices WHERE site_id = $1`, membership.SiteID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -50,21 +50,27 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(devices)
 }
 
-// Get trả về một device theo ID
+// Get trả về chi tiết một device
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	siteID, _ := uuid.Parse(chi.URLParam(r, "siteID"))
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		return
+	}
+	siteID := membership.SiteID
 
 	var d models.Device
 	err = h.store.Pool.QueryRow(r.Context(),
-		"SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at FROM devices WHERE id = $1 AND site_id = $2",
-		id, siteID).Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
+		`SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at 
+		 FROM devices WHERE id = $1 AND site_id = $2`, id, siteID).
+		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 		return
 	}
 
@@ -74,16 +80,21 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Create tạo device mới
 func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
-	siteID, _ := uuid.Parse(chi.URLParam(r, "siteID"))
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	var input struct {
 		Name         string `json:"name"`
 		DeviceType   string `json:"device_type"`
 		MqttClientID string `json:"mqtt_client_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
+	siteID := membership.SiteID
 
 	var d models.Device
 	err := h.store.Pool.QueryRow(r.Context(),
@@ -104,21 +115,28 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Update cập nhật device
 func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		return
+	}
+
+	siteID := membership.SiteID
 
 	var input struct {
 		Name       string `json:"name"`
 		DeviceType string `json:"device_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
-	siteID, _ := uuid.Parse(chi.URLParam(r, "siteID"))
+
 	var d models.Device
 	err = h.store.Pool.QueryRow(r.Context(),
 		`UPDATE devices SET name=$1, device_type=$2 
@@ -127,7 +145,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.DeviceType, id, siteID).
 		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, "not found or error", http.StatusInternalServerError)
+		http.Error(w, `{"error":"not found or update failed"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -137,12 +155,18 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete xóa device
 func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	siteID, _ := uuid.Parse(chi.URLParam(r, "siteID"))
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		return
+	}
+
+	siteID := membership.SiteID
 
 	_, err = h.store.Pool.Exec(r.Context(),
 		"DELETE FROM devices WHERE id=$1 AND site_id=$2", id, siteID)

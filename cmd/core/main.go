@@ -13,6 +13,7 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
@@ -69,18 +70,18 @@ func main() {
 	ingestService.StartOfflineChecker(30 * time.Second)
 
 	// WebSocket Hub
-	wsHub := ws.NewHub(cfg.JWTSecret, pgStore)
+	wsHub := ws.NewHub(pgStore, cfg.JWTSecret)
 	go wsHub.Run()
 
 	// Router
 	router := api.NewRouter(pgStore, influxReader, influxWriter, cfg.JWTSecret, wsHub)
-	// err = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-	// 	log.Printf("Route: %s %s", method, route)
-	// 	return nil
-	// })
-	// if err != nil {
-	// 	log.Fatalf("Chi Walk: %v", err)
-	// }
+	err = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		log.Printf("Route: %s %s", method, route)
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("Chi Walk: %v", err)
+	}
 
 	log.Println("NL SCADA Core listening on :8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {

@@ -38,7 +38,7 @@ func NewService(pg *postgres.Store, influx *influxdb.Writer) *Service {
 
 // HandleData xử lý message MQTT từ Gateway (data và heartbeat)
 func (s *Service) HandleData(topic string, payload []byte) {
-	// Parse tenant_id và device_id từ topic: "tenant/{tenant_id}/device/{device_id}/data" hoặc "/heartbeat"
+	// Parse site_id và device_id từ topic: "site/{site_id}/device/{device_id}/data" hoặc "/heartbeat"
 	parts := strings.Split(topic, "/")
 	if len(parts) < 5 {
 		log.Printf("Ingest: invalid topic format: %s", topic)
@@ -46,7 +46,7 @@ func (s *Service) HandleData(topic string, payload []byte) {
 	}
 	siteID, err := uuid.Parse(parts[1])
 	if err != nil {
-		log.Printf("Ingest: invalid tenant_id in topic: %s", parts[1])
+		log.Printf("Ingest: invalid site_id in topic: %s", parts[1])
 		return
 	}
 	deviceID, err := uuid.Parse(parts[3])
@@ -55,6 +55,15 @@ func (s *Service) HandleData(topic string, payload []byte) {
 		return
 	}
 	msgType := parts[4] // "data" hoặc "heartbeat"
+
+	// Kiểm tra device có tồn tại trong DB không (Lớp bảo mật 4)
+	var exists bool
+	err = s.pg.Pool.QueryRow(context.Background(),
+		"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)", deviceID, siteID).Scan(&exists)
+	if err != nil || !exists {
+		log.Printf("Ingest: device %s not found in site %s, ignoring", deviceID, siteID)
+		return
+	}
 
 	switch msgType {
 	case "data":
@@ -87,7 +96,7 @@ func (s *Service) HandleData(topic string, payload []byte) {
 		}
 		channel.RealTimeDataChan <- channel.RealTimeUpdate{
 			Type:      "tag_update",
-			SiteID:    siteID,
+			SiteID:    siteID, // thay TenantID
 			DeviceID:  deviceID,
 			Timestamp: msg.Timestamp,
 			Tags:      tagMap,

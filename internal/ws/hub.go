@@ -7,6 +7,8 @@ import (
 
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/pkg/channel"
+
+	"github.com/google/uuid"
 )
 
 type subscription struct {
@@ -16,21 +18,22 @@ type subscription struct {
 }
 
 type Hub struct {
+	store       *postgres.Store
 	clients     map[*Client]bool
 	register    chan *Client
 	unregister  chan *Client
 	subscribe   chan subscription
 	unsubscribe chan subscription
 	jwtSecret   string
-	store       *postgres.Store
 
 	// Map: siteID -> deviceID -> set of clients
 	devices map[string]map[string]map[*Client]bool
 	mu      sync.RWMutex
 }
 
-func NewHub(jwtSecret string, store *postgres.Store) *Hub {
+func NewHub(store *postgres.Store, jwtSecret string) *Hub {
 	return &Hub{
+		store:       store,
 		clients:     make(map[*Client]bool),
 		register:    make(chan *Client),
 		unregister:  make(chan *Client),
@@ -38,7 +41,6 @@ func NewHub(jwtSecret string, store *postgres.Store) *Hub {
 		unsubscribe: make(chan subscription),
 		devices:     make(map[string]map[string]map[*Client]bool),
 		jwtSecret:   jwtSecret,
-		store:       store,
 	}
 }
 
@@ -53,11 +55,18 @@ func (h *Hub) Run() {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				// Xóa client khỏi tất cả subscription
 				h.mu.Lock()
-				for _, devs := range h.devices {
-					for _, cls := range devs {
-						delete(cls, client)
+				for siteID, devs := range h.devices {
+					for devID, cls := range devs {
+						if _, ok := cls[client]; ok {
+							delete(cls, client)
+							if len(cls) == 0 {
+								delete(devs, devID)
+							}
+						}
+					}
+					if len(devs) == 0 {
+						delete(h.devices, siteID)
 					}
 				}
 				h.mu.Unlock()
@@ -65,32 +74,28 @@ func (h *Hub) Run() {
 			}
 
 		case sub := <-h.subscribe:
-			siteID := sub.siteID
-			deviceID := sub.deviceID
 			h.mu.Lock()
-			if h.devices[siteID] == nil {
-				h.devices[siteID] = make(map[string]map[*Client]bool)
+			if h.devices[sub.siteID] == nil {
+				h.devices[sub.siteID] = make(map[string]map[*Client]bool)
 			}
-			if h.devices[siteID][deviceID] == nil {
-				h.devices[siteID][deviceID] = make(map[*Client]bool)
+			if h.devices[sub.siteID][sub.deviceID] == nil {
+				h.devices[sub.siteID][sub.deviceID] = make(map[*Client]bool)
 			}
-			h.devices[siteID][deviceID][sub.client] = true
+			h.devices[sub.siteID][sub.deviceID][sub.client] = true
 			h.mu.Unlock()
-			log.Printf("WS client subscribed to device %s in site %s", deviceID, siteID)
+			log.Printf("WS client subscribed to device %s in site %s", sub.deviceID, sub.siteID)
 
 		case unsub := <-h.unsubscribe:
-			siteID := unsub.siteID
-			deviceID := unsub.deviceID
 			h.mu.Lock()
-			if devs, ok := h.devices[siteID]; ok {
-				if cls, ok := devs[deviceID]; ok {
+			if devs, ok := h.devices[unsub.siteID]; ok {
+				if cls, ok := devs[unsub.deviceID]; ok {
 					delete(cls, unsub.client)
 					if len(cls) == 0 {
-						delete(devs, deviceID)
+						delete(devs, unsub.deviceID)
 					}
 				}
 				if len(devs) == 0 {
-					delete(h.devices, siteID)
+					delete(h.devices, unsub.siteID)
 				}
 			}
 			h.mu.Unlock()
@@ -119,21 +124,20 @@ func (h *Hub) Run() {
 		}
 	}
 }
-
-func ServeWebSocket(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func ServeWebSocket(hub *Hub, store *postgres.Store, userID uuid.UUID, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WS upgrade error: %v", err)
 		return
 	}
 	client := &Client{
-		hub:     hub,
-		conn:    conn,
-		send:    make(chan []byte, 256),
-		devices: make(map[string]string), // lưu deviceID -> siteID để dễ unsubscribe
+		hub:    hub,
+		conn:   conn,
+		send:   make(chan []byte, 256),
+		userID: userID,
 	}
+	client.loadPermissions()
 	hub.register <- client
-
-	// go client.writePump()
+	go client.writePump()
 	go client.readPump()
 }

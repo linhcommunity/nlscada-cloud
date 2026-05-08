@@ -6,27 +6,31 @@ import (
 	"github.com/google/uuid"
 )
 
+// Site đại diện cho một site (trước đây là tenant)
 type Site struct {
 	ID        uuid.UUID `json:"id"         db:"id"`
 	Name      string    `json:"name"       db:"name"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// User đại diện cho người dùng toàn cục (không gắn trực tiếp site)
 type User struct {
-	ID            uuid.UUID `json:"id"             db:"id"`
-	Email         string    `json:"email"          db:"email"`
-	PasswordHash  string    `json:"-"              db:"password_hash"`
-	EmailVerified bool      `json:"email_verified" db:"email_verified"`
-	CreatedAt     time.Time `json:"created_at"     db:"created_at"`
+	ID           uuid.UUID `json:"id"            db:"id"`
+	Email        string    `json:"email"         db:"email"`
+	PasswordHash string    `json:"-"             db:"password_hash"` // không serialize ra JSON
+	CreatedAt    time.Time `json:"created_at"    db:"created_at"`
 }
 
+// Membership liên kết User với Site kèm vai trò trong site đó
 type Membership struct {
+	ID        uuid.UUID `json:"id"         db:"id"`
 	UserID    uuid.UUID `json:"user_id"    db:"user_id"`
 	SiteID    uuid.UUID `json:"site_id"    db:"site_id"`
 	Role      string    `json:"role"       db:"role"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// Device thuộc về một Site
 type Device struct {
 	ID            uuid.UUID  `json:"id"              db:"id"`
 	SiteID        uuid.UUID  `json:"site_id"         db:"site_id"`
@@ -38,6 +42,7 @@ type Device struct {
 	CreatedAt     time.Time  `json:"created_at"      db:"created_at"`
 }
 
+// Tag là điểm dữ liệu của một Device
 type Tag struct {
 	ID          uuid.UUID `json:"id"          db:"id"`
 	DeviceID    uuid.UUID `json:"device_id"   db:"device_id"`
