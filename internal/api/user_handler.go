@@ -27,14 +27,18 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user struct {
-		ID            uuid.UUID `json:"id"`
-		Email         string    `json:"email"`
-		EmailVerified bool      `json:"email_verified"`
-		CreatedAt     time.Time `json:"created_at"`
+		ID    uuid.UUID `json:"id"`
+		Email string    `json:"email"`
+		// TODO: email_verified sẽ được thêm ở phiên bản sau
+		// EmailVerified bool   `json:"email_verified"`
+		CreatedAt time.Time `json:"created_at"`
 	}
 	err := h.store.Pool.QueryRow(r.Context(),
 		"SELECT id, email, email_verified, created_at FROM users WHERE id = $1", claims.UserID).
-		Scan(&user.ID, &user.Email, &user.EmailVerified, &user.CreatedAt)
+		Scan(&user.ID,
+			&user.Email,
+			// &user.EmailVerified,
+			&user.CreatedAt)
 
 	if err != nil {
 		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
@@ -57,15 +61,18 @@ func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type UserInfo struct {
-		ID            uuid.UUID `json:"id"`
-		Email         string    `json:"email"`
-		EmailVerified bool      `json:"email_verified"`
-		CreatedAt     time.Time `json:"created_at"`
+		ID    uuid.UUID `json:"id"`
+		Email string    `json:"email"`
+		// EmailVerified bool      `json:"email_verified"`
+		CreatedAt time.Time `json:"created_at"`
 	}
 	var users []UserInfo
 	for rows.Next() {
 		var u UserInfo
-		if err := rows.Scan(&u.ID, &u.Email, &u.EmailVerified, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID,
+			&u.Email,
+			// &u.EmailVerified,
+			&u.CreatedAt); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

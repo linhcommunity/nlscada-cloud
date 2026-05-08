@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"nlscada-cloud/internal/db/influxdb"
+	"nlscada-cloud/internal/db/postgres"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type DataHandler struct {
 	influxReader *influxdb.Reader
+	store        *postgres.Store
 }
 
 func NewDataHandler(reader *influxdb.Reader) *DataHandler {
@@ -21,8 +23,28 @@ func NewDataHandler(reader *influxdb.Reader) *DataHandler {
 }
 
 func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Data query request: %v\n", r)
+	// 1. Kiểm tra membership
+	membership := GetMembership(r)
+	if membership == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	// 2. Lấy deviceID từ URL
 	deviceID := chi.URLParam(r, "deviceID")
+	if deviceID == "" {
+		http.Error(w, `{"error":"deviceID required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// 3. Kiểm tra device có thuộc site của membership không
+	var exists bool
+	err := h.store.Pool.QueryRow(r.Context(),
+		"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)",
+		deviceID, membership.SiteID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, `{"error":"device not found or access denied"}`, http.StatusNotFound)
+		return
+	}
 	tagsParam := r.URL.Query().Get("tags")
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
