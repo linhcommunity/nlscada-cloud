@@ -26,19 +26,18 @@ func NewAuthHandler(store *postgres.Store, jwtSecret string) *AuthHandler {
 type registerRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-	SiteName string `json:"site_name,omitempty"` // nếu bỏ trống sẽ tự sinh từ email
+	// SiteName string `json:"site_name,omitempty"` // nếu bỏ trống sẽ tự sinh từ email
 }
 
 type registerResponse struct {
-	SiteID   uuid.UUID `json:"site_id"`
-	SiteName string    `json:"site_name"`
-	UserID   uuid.UUID `json:"user_id"`
-	Email    string    `json:"email"`
-	Role     string    `json:"role"`
-	Token    string    `json:"token"`
-	Message  string    `json:"message"`
+	UserID uuid.UUID `json:"user_id"`
+	Email  string    `json:"email"`
+	// Token    string    `json:"token"`
+	Message string `json:"message"`
 }
 
+// Register chỉ tạo user mới. Không tạo site, không tạo membership, không trả về token.
+// Người dùng phải login để lấy token, sau đó tự tạo site hoặc được mời vào site.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -50,6 +49,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"email and password required"}`, http.StatusBadRequest)
 		return
 	}
+
 	// Hash password
 	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -57,37 +57,26 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-	tx, err := h.store.Pool.Begin(ctx)
-	if err != nil {
-		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback(ctx)
-
-	// 1. Tạo site - không dùng nữa
-
-	// 2. Tạo user
+	// Tạo user
 	var userID uuid.UUID
-	err = tx.QueryRow(ctx, "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id", req.Email, string(hashed)).Scan(&userID)
+	err = h.store.Pool.QueryRow(r.Context(),
+		"INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id",
+		req.Email, string(hashed),
+	).Scan(&userID)
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate key") {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique") {
 			http.Error(w, `{"error":"email already exists"}`, http.StatusConflict)
-		} else {
-			http.Error(w, `{"error":"failed to create user"}`, http.StatusInternalServerError)
+			return
 		}
+		http.Error(w, `{"error":"failed to create user"}`, http.StatusInternalServerError)
 		return
 	}
-	// token, err := auth.GenerateToken(h.jwtSecret, userID)
-	// if err != nil {
-	// 	http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
-	// 	return
-	// }
-	resp := registerResponse{
-		UserID:  userID,
-		Email:   req.Email,
-		Message: "registration successful",
-		// Token:   token,
+
+	// Phản hồi
+	resp := map[string]interface{}{
+		"user_id": userID,
+		"email":   req.Email,
+		"message": "registration successful. Please login to get your access token.",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -103,7 +92,8 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	Token string `json:"token"`
+	Token   string `json:"token"`
+	Message string `json:"message,omitempty"`
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +113,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid credentials"}`, http.StatusUnauthorized)
 		return
 	}
-
+	// fmt.Printf("UserID: %s, PasswordHash: %s\n", userID, passwordHash)
 	// Kiểm tra password
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.Password)); err != nil {
 		http.Error(w, `{"error":"invalid credentials"}`, http.StatusUnauthorized)
@@ -138,7 +128,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(loginResponse{Token: token})
+	json.NewEncoder(w).Encode(loginResponse{Token: token, Message: "login successful"})
 }
 
 // --- Refresh ---

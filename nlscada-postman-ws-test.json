@@ -1,0 +1,46 @@
+{
+  "info": {
+    "name": "NL SCADA - WebSocket Tests",
+    "description": "Collection chứa WebSocket request để test real-time data.\n\nYêu cầu:\n- Đã lấy token từ API login\n- Đã có site_id và device_id",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Connect and Subscribe",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Kiểm tra biến môi trường",
+              "if (!pm.environment.get('token')) {",
+              "    throw new Error('Missing token. Please login first.');",
+              "}",
+              "if (!pm.environment.get('site_id')) {",
+              "    throw new Error('Missing site_id. Please create a site first.');",
+              "}",
+              "if (!pm.environment.get('device_id')) {",
+              "    throw new Error('Missing device_id. Please create a device first.');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "ws://localhost:8080/v1/ws?token={{token}}",
+          "host": ["localhost:8080"],
+          "path": ["v1", "ws"],
+          "query": [
+            {
+              "key": "token",
+              "value": "{{token}}"
+            }
+          ]
+        },
+        "headers": []
+      }
+    }
+  ]
+}

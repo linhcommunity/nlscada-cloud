@@ -86,11 +86,21 @@ func (c *Client) readPump() {
 				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "site_id and device_id required"})
 				continue
 			}
-			// Kiểm tra quyền
+			// 1. Kiểm tra quyền
 			if _, ok := c.permissions[msg.SiteID]; !ok {
 				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "forbidden"})
 				continue
 			}
+			// 2. Kiểm tra device có thuộc site không
+			var exists bool
+			err := c.hub.store.Pool.QueryRow(context.Background(),
+				"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)",
+				msg.DeviceID, msg.SiteID).Scan(&exists)
+			if err != nil || !exists {
+				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "device not found in site"})
+				continue
+			}
+			// 3. Đăng ký subscription
 			c.hub.subscribe <- subscription{client: c, siteID: msg.SiteID, deviceID: msg.DeviceID}
 			c.send <- mustMarshal(ServerMessage{Type: "sub_ok", SiteID: msg.SiteID, DeviceID: msg.DeviceID})
 			log.Printf("WS client subscribed to device %s in site %s", msg.DeviceID, msg.SiteID)

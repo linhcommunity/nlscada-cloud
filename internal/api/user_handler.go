@@ -34,7 +34,7 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 		CreatedAt time.Time `json:"created_at"`
 	}
 	err := h.store.Pool.QueryRow(r.Context(),
-		"SELECT id, email, email_verified, created_at FROM users WHERE id = $1", claims.UserID).
+		"SELECT id, email, created_at FROM users WHERE id = $1", claims.UserID).
 		Scan(&user.ID,
 			&user.Email,
 			// &user.EmailVerified,
@@ -53,7 +53,7 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 	// Chỉ cần trả về danh sách user đã verified (không phân biệt tenant)
 	rows, err := h.store.Pool.Query(r.Context(),
-		"SELECT id, email, email_verified, created_at FROM users WHERE email_verified = true")
+		"SELECT id, email, created_at FROM users WHERE email_verified = true")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

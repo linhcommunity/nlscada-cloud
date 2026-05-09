@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/models"
@@ -24,7 +25,7 @@ func NewSiteHandler(store *postgres.Store) *SiteHandler {
 // CreateSite - POST /v1/sites
 // Create tạo site mới và gán user hiện tại làm admin
 func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
-	claims := GetClaims(r)
+	claims := GetClaims(r) // chứa userID
 	if claims == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
@@ -38,13 +39,13 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
-	if input.Name == "" {
+	if input.Name == "" { // loại trừ tên rỗng
 		http.Error(w, `{"error":"name required"}`, http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	tx, err := h.store.Pool.Begin(ctx)
+	tx, err := h.store.Pool.Begin(ctx) // bắt đầu transaction
 	if err != nil {
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -63,13 +64,14 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// siteID lấy từ database, đảm bảo là UUID hợp lệ nên không cần parse lại
-
+	fmt.Printf("Created site with ID: %s\n, name: %s", siteID, input.Name)
 	// 2. Tạo membership (admin) cho user
 	_, err = tx.Exec(ctx, "INSERT INTO memberships (user_id, site_id, role) VALUES ($1, $2, 'admin')", claims.UserID, siteID)
 	if err != nil {
 		http.Error(w, `{"error":"failed to create membership"}`, http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Created membership for user %s as admin of site %s\n", claims.UserID, siteID)
 
 	if err := tx.Commit(ctx); err != nil {
 		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
@@ -92,6 +94,8 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Role: "admin",
 	}
 
+	fmt.Printf("Site created successfully: %+v\n", resp)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp)
@@ -100,10 +104,15 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 // ListSites - GET /v1/sites (các site user tham gia)
 func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
+	if claims == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	rows, err := h.store.Pool.Query(r.Context(),
-		`SELECT s.id, s.name, s.created_at 
-		 FROM sites s
-		 JOIN memberships m ON s.id = m.site_id
+		`SELECT s.id, s.name, s.created_at, m.role 
+		 FROM sites s 
+		 INNER JOIN memberships m ON s.id = m.site_id 
 		 WHERE m.user_id = $1`, claims.UserID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -111,15 +120,23 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var sites []models.Site
+	type SiteInfo struct {
+		ID        uuid.UUID `json:"id"`
+		Name      string    `json:"name"`
+		CreatedAt time.Time `json:"created_at"`
+		Role      string    `json:"role"`
+	}
+
+	var sites []SiteInfo
 	for rows.Next() {
-		var s models.Site
-		if err := rows.Scan(&s.ID, &s.Name, &s.CreatedAt); err != nil {
+		var s SiteInfo
+		if err := rows.Scan(&s.ID, &s.Name, &s.CreatedAt, &s.Role); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		sites = append(sites, s)
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sites)
 }
