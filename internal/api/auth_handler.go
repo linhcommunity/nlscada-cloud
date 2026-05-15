@@ -145,9 +145,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 1. Đọc refresh token từ cookie đặc thù
-	cookie, err := r.Cookie("refresh_token")
+	cookie, err := r.Cookie("session_token")
 	if err != nil {
-		response.Error(w, http.StatusUnauthorized, "REFRESH_TOKEN_MISSING", "Phiên làm việc đã kết thúc, vui lòng đăng nhập lại.")
+		response.Error(w, http.StatusUnauthorized, "SESSION_NOT_FOUND", "Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại!")
 		return
 	}
 
@@ -163,8 +163,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": newToken})
 	response.JSONWithCookie(w, http.StatusOK, loginResponse{Message: "Làm mới token thành công."}, newToken, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
 }
 

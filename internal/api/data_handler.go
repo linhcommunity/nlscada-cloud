@@ -18,8 +18,8 @@ type DataHandler struct {
 	store        *postgres.Store
 }
 
-func NewDataHandler(reader *influxdb.Reader) *DataHandler {
-	return &DataHandler{influxReader: reader}
+func NewDataHandler(store *postgres.Store, reader *influxdb.Reader) *DataHandler {
+	return &DataHandler{influxReader: reader, store: store}
 }
 
 func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {

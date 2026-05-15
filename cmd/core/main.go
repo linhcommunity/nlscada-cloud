@@ -61,6 +61,13 @@ func main() {
 				ingestService.HandleData(msg.Topic(), msg.Payload())
 			},
 		},
+		"site/+/device/+/event": {
+			Qos: 1,
+			Handler: func(client paho.Client, msg paho.Message) {
+				log.Printf("MQTT event: topic=%s payload=%s", msg.Topic(), string(msg.Payload()))
+				ingestService.HandleEvent(msg.Topic(), msg.Payload())
+			},
+		},
 	}
 
 	// Tạo MQTT client (sẽ tự connect và subscribe trong OnConnect)
@@ -74,7 +81,7 @@ func main() {
 	go wsHub.Run()
 
 	// Router
-	router := api.NewRouter(pgStore, influxReader, influxWriter, cfg.JWTSecret, wsHub)
+	router := api.NewRouter(pgStore, influxReader, influxWriter, cfg.JWTSecret, wsHub, mqttClient)
 	err = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		log.Printf("Route: %s %s", method, route)
 		return nil

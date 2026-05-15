@@ -45,7 +45,68 @@ type ErrorResponse struct {
 }
 
 // --- CÁC HÀM TIỆN ÍCH (HELPER FUNCTIONS) ĐÃ NÂNG CẤP ---
-// Gửi phản hồi thành công và thiết lập HttpOnly Cookie (Dùng khi Đăng nhập / Đăng ký)
+
+// 1. JSONWithPagination: Phản hồi danh sách có phân trang + Thiết lập HttpOnly Cookie (Tùy chọn)
+// Nếu không muốn ghi đè Cookie, bạn chỉ cần truyền chuỗi tokenString rỗng ("")
+func respondWithPagination(w http.ResponseWriter, statusCode int, data interface{}, page int, limit int, totalItems int64, tokenString string, domain string) {
+	// Phòng chống lỗi mảng rỗng (null) trên giao diện Web Client
+	if data == nil {
+		data = []interface{}{}
+	}
+
+	// Tự động tính toán tổng số trang dựa trên tổng số phần tử và giới hạn bản ghi
+	totalPages := int(totalItems) / limit
+	if int(totalItems)%limit != 0 {
+		totalPages++
+	}
+
+	// Nếu có truyền Token, tiến hành thiết lập mã HttpOnly Cookie bảo mật
+	if tokenString != "" {
+		cookie := &http.Cookie{
+			Name:     "session_token",
+			Value:    tokenString,
+			Path:     "/",
+			Domain:   domain, // Ví dụ: ".myiiot.com"
+			HttpOnly: true,   // Ngăn chặn mã độc JavaScript đọc mã phiên (Chống XSS)
+			Secure:   true,   // Ép buộc trình duyệt chỉ truyền qua mạng mã hóa HTTPS
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   86400, // Phiên làm việc có hiệu lực trong 24 giờ
+		}
+		http.SetCookie(w, cookie)
+	}
+
+	// Đóng gói cấu trúc phản hồi JSON chuẩn hóa 100%
+	res := SuccessResponse{
+		Success: true,
+		Data:    data,
+		Meta: Meta{
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Pagination: &Pagination{
+				Page:       page,
+				Limit:      limit,
+				TotalPages: totalPages,
+				TotalItems: totalItems,
+			},
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(res)
+}
+
+// Hàm 1: Chỉ xuất dữ liệu danh sách phân trang thuần túy (Dùng cho 90% API)
+func JSONWithPagination(w http.ResponseWriter, statusCode int, data interface{}, page int, limit int, totalItems int64) {
+	// Không xử lý Cookie, chỉ gọi luồng đóng gói JSON như bình thường
+	respondWithPagination(w, statusCode, data, page, limit, totalItems, "", "")
+}
+
+// Hàm 2: Xuất danh sách phân trang + Ép ghi đè Cookie (Chỉ dùng khi cần gia hạn phiên hoặc Đăng nhập/Đăng ký)
+func JSONWithPaginationAndCookie(w http.ResponseWriter, statusCode int, data interface{}, page int, limit int, totalItems int64, tokenString string, domain string) {
+	respondWithPagination(w, statusCode, data, page, limit, totalItems, tokenString, domain)
+}
+
+// 2. Gửi phản hồi thành công và thiết lập HttpOnly Cookie (Dùng khi Đăng nhập / Đăng ký)
 func JSONWithCookie(w http.ResponseWriter, statusCode int, data interface{}, tokenString string, domain string) {
 	if data == nil {
 		data = struct{}{}
@@ -77,7 +138,7 @@ func JSONWithCookie(w http.ResponseWriter, statusCode int, data interface{}, tok
 	json.NewEncoder(w).Encode(res)
 }
 
-// Xóa HttpOnly Cookie khỏi trình duyệt (Dùng khi Đăng xuất)
+// 3. Xóa HttpOnly Cookie khỏi trình duyệt (Dùng khi Đăng xuất)
 func JSONClearCookie(w http.ResponseWriter, domain string) {
 	cookie := &http.Cookie{
 		Name:     "session_token",
@@ -103,7 +164,7 @@ func JSONClearCookie(w http.ResponseWriter, domain string) {
 	json.NewEncoder(w).Encode(res)
 }
 
-// 1. JSON: Phản hồi thành công cho tài nguyên đơn lẻ (Ví dụ: Chi tiết 1 thiết bị, Đăng ký xong 1 User)
+// 4. JSON: Phản hồi thành công cho tài nguyên đơn lẻ (Ví dụ: Chi tiết 1 thiết bị, Đăng ký xong 1 User)
 func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	// Phòng chống lỗi dữ liệu rỗng (null) phá vỡ UI của Frontend
 	if data == nil {
@@ -122,7 +183,7 @@ func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	json.NewEncoder(w).Encode(res)
 }
 
-// 2. ListJSON: Phản hồi thành công cho API danh sách BẮT BUỘC có phân trang (Ví dụ: Lấy danh sách thiết bị)
+// 5. ListJSON: Phản hồi thành công cho API danh sách BẮT BUỘC có phân trang (Ví dụ: Lấy danh sách thiết bị)
 func ListJSON(w http.ResponseWriter, statusCode int, data interface{}, page int, limit int, totalItems int64) {
 	// Nếu mảng dữ liệu rỗng, ép hệ thống trả về mảng rỗng [] thay vì null
 	if data == nil {
@@ -153,7 +214,7 @@ func ListJSON(w http.ResponseWriter, statusCode int, data interface{}, page int,
 	json.NewEncoder(w).Encode(res)
 }
 
-// 3. Error: Giữ nguyên hàm báo lỗi hệ thống của bạn (Chuẩn)
+// 6. Error: Giữ nguyên hàm báo lỗi hệ thống của bạn (Chuẩn)
 func Error(w http.ResponseWriter, statusCode int, errorCode string, message string) {
 	res := ErrorResponse{
 		Success: false,
@@ -168,7 +229,7 @@ func Error(w http.ResponseWriter, statusCode int, errorCode string, message stri
 	json.NewEncoder(w).Encode(res)
 }
 
-// 4. ValidationError: Giữ nguyên hàm báo lỗi nhập liệu của bạn (Chuẩn)
+// 7. ValidationError: Giữ nguyên hàm báo lỗi nhập liệu của bạn (Chuẩn)
 func ValidationError(w http.ResponseWriter, details []ValidationErrorDetail) {
 	res := ErrorResponse{
 		Success: false,

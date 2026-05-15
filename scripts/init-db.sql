@@ -1,18 +1,24 @@
 -- ============================================
--- NL SCADA Center v1.0 – Database Schema & Seed
--- (site + membership model)
+-- NL SCADA Center – Database Schema (v1.1+)
 -- ============================================
 
--- Bật extension nếu cần (thường có sẵn)
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Xóa bảng cũ (chỉ dùng trong môi trường dev)
-DROP TABLE IF EXISTS memberships;
-DROP TABLE IF EXISTS tags;
-DROP TABLE IF EXISTS devices;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS sites;
-DROP TABLE IF EXISTS tenants CASCADE; -- xóa bảng cũ nếu còn
+DROP TABLE IF EXISTS site_retention_policies CASCADE;
+DROP TABLE IF EXISTS system_event_logs CASCADE;
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS pid_widgets CASCADE;
+DROP TABLE IF EXISTS pid_diagrams CASCADE;
+DROP TABLE IF EXISTS alert_logs CASCADE;
+DROP TABLE IF EXISTS control_logs CASCADE;
+DROP TABLE IF EXISTS control_config CASCADE;
+DROP TABLE IF EXISTS alert_rules CASCADE;
+DROP TABLE IF EXISTS tags CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;
+DROP TABLE IF EXISTS memberships CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS sites CASCADE;
 
 -- ============================================
 -- 1. SITES
@@ -20,27 +26,29 @@ DROP TABLE IF EXISTS tenants CASCADE; -- xóa bảng cũ nếu còn
 CREATE TABLE sites (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================
--- 2. USERS (toàn cục, không gắn trực tiếp site)
+-- 2. USERS
 -- ============================================
 CREATE TABLE users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email         VARCHAR(255) NOT NULL UNIQUE,
+    name          VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================
--- 3. MEMBERSHIPS (liên kết user - site - role)
+-- 3. MEMBERSHIPS
 -- ============================================
 CREATE TABLE memberships (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-    role       VARCHAR(20) NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin','operator','viewer')),
+    role       VARCHAR(20) NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin','operator','viewer','auditor')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, site_id)
 );
@@ -74,45 +82,158 @@ CREATE TABLE tags (
 );
 
 -- ============================================
--- 6. INDEXES
+-- 6. ALERT RULES
 -- ============================================
-CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
-CREATE INDEX IF NOT EXISTS idx_memberships_site ON memberships(site_id);
-CREATE INDEX IF NOT EXISTS idx_devices_site ON devices(site_id);
-CREATE INDEX IF NOT EXISTS idx_tags_device ON tags(device_id);
+CREATE TABLE alert_rules (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    tag_id          UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    name            VARCHAR(100) NOT NULL,
+    description     TEXT,
+    min_value       DOUBLE PRECISION,
+    max_value       DOUBLE PRECISION,
+    severity        VARCHAR(20) NOT NULL DEFAULT 'WARNING' CHECK (severity IN ('INFO','WARNING','CRITICAL')),
+    message_template TEXT,
+    is_enabled      BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ
+);
 
 -- ============================================
--- 7. SEED DATA (dữ liệu mẫu)
+-- 7. CONTROL CONFIG
 -- ============================================
--- Sử dụng DO block để tránh lỗi duplicate key
-DO $$
-BEGIN
-    -- Site mẫu
-    IF NOT EXISTS (SELECT 1 FROM sites WHERE id = '00000000-0000-0000-0000-000000000001') THEN
-        INSERT INTO sites (id, name) VALUES ('00000000-0000-0000-0000-000000000001', 'Demo Site');
-    END IF;
+CREATE TABLE control_config (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    tag_id          UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    control_type    VARCHAR(50) NOT NULL,
+    allowed_values  JSONB,
+    is_enabled      BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ
+);
 
-    -- User admin (password: admin123, bcrypt hash)
-    IF NOT EXISTS (SELECT 1 FROM users WHERE id = '00000000-0000-0000-0000-000000000010') THEN
-        INSERT INTO users (id, email, password_hash) VALUES ('00000000-0000-0000-0000-000000000010', 'admin@demo.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
-    END IF;
+-- ============================================
+-- 8. CONTROL LOGS
+-- ============================================
+CREATE TABLE control_logs (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id          UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    device_id        UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tag_name         VARCHAR(100) NOT NULL,
+    requested_value  VARCHAR(50) NOT NULL,
+    previous_value   VARCHAR(50),
+    status           VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SENT','SUCCESS','FAILED','TIMEOUT')),
+    error_message    TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at          TIMESTAMPTZ,
+    acknowledged_at  TIMESTAMPTZ
+);
 
-    -- Membership: admin trong site demo
-    IF NOT EXISTS (SELECT 1 FROM memberships WHERE user_id = '00000000-0000-0000-0000-000000000010' AND site_id = '00000000-0000-0000-0000-000000000001') THEN
-        INSERT INTO memberships (user_id, site_id, role) VALUES ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', 'admin');
-    END IF;
+-- ============================================
+-- 9. ALERT LOGS
+-- ============================================
+CREATE TABLE alert_logs (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id          UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    device_id        UUID REFERENCES devices(id) ON DELETE CASCADE,
+    tag_name         VARCHAR(100) NOT NULL,
+    triggered_value  DOUBLE PRECISION NOT NULL,
+    threshold_value  DOUBLE PRECISION NOT NULL,
+    severity         VARCHAR(20) NOT NULL CHECK (severity IN ('INFO','WARNING','CRITICAL')),
+    message          TEXT NOT NULL,
+    status           VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ACKNOWLEDGED','RESOLVED')),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    acknowledged_at  TIMESTAMPTZ,
+    acknowledged_by  UUID REFERENCES users(id),
+    resolved_at      TIMESTAMPTZ
+);
 
-    -- Device mẫu (thuộc site demo)
-    IF NOT EXISTS (SELECT 1 FROM devices WHERE id = '00000000-0000-0000-0000-000000000100') THEN
-        INSERT INTO devices (id, site_id, name, device_type, mqtt_client_id, status)
-        VALUES ('00000000-0000-0000-0000-000000000100', '00000000-0000-0000-0000-000000000001', 'Virtual Device 1', 'virtual', 'gateway-sim', 'offline');
-    END IF;
+-- ============================================
+-- 10. P&ID DIAGRAMS
+-- ============================================
+CREATE TABLE pid_diagrams (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id       UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    name          VARCHAR(100) NOT NULL,
+    background_url TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ
+);
 
-    -- Tags cho device mẫu
-    IF NOT EXISTS (SELECT 1 FROM tags WHERE id = '00000000-0000-0000-0000-000000001000') THEN
-        INSERT INTO tags (id, device_id, name, data_type, unit, description) VALUES
-        ('00000000-0000-0000-0000-000000001000', '00000000-0000-0000-0000-000000000100', 'temperature', 'float', '°C', 'Nhiệt độ phòng'),
-        ('00000000-0000-0000-0000-000000001001', '00000000-0000-0000-0000-000000000100', 'humidity', 'float', '%', 'Độ ẩm'),
-        ('00000000-0000-0000-0000-000000001002', '00000000-0000-0000-0000-000000000100', 'pump_status', 'bool', NULL, 'Trạng thái bơm');
-    END IF;
-END $$;
+-- ============================================
+-- 11. P&ID WIDGETS
+-- ============================================
+CREATE TABLE pid_widgets (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    diagram_id  UUID NOT NULL REFERENCES pid_diagrams(id) ON DELETE CASCADE,
+    device_id   UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    tag_name    VARCHAR(100) NOT NULL,
+    position_x  NUMERIC(5,2) NOT NULL,
+    position_y  NUMERIC(5,2) NOT NULL,
+    widget_type VARCHAR(20) NOT NULL CHECK (widget_type IN ('TEXT','PUMP','VALVE'))
+);
+
+-- ============================================
+-- 12. AUDIT LOGS
+-- ============================================
+CREATE TABLE audit_logs (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id          UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action_type      VARCHAR(50) NOT NULL,
+    resource_target  VARCHAR(50) NOT NULL,
+    target_id        UUID,
+    description      TEXT NOT NULL,
+    old_values       JSONB,
+    new_values       JSONB,
+    ip_address       VARCHAR(45) NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
+-- 13. SYSTEM EVENT LOGS
+-- ============================================
+CREATE TABLE system_event_logs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    device_id       UUID REFERENCES devices(id) ON DELETE CASCADE,
+    event_type      VARCHAR(50) NOT NULL,
+    severity_level  VARCHAR(20) NOT NULL CHECK (severity_level IN ('INFO','WARNING','ERROR')),
+    message         TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
+-- 14. SITE RETENTION POLICIES
+-- ============================================
+CREATE TABLE site_retention_policies (
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id                UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE UNIQUE,
+    audit_logs_days        INTEGER NOT NULL DEFAULT 90,
+    system_event_logs_days INTEGER NOT NULL DEFAULT 90,
+    alert_logs_days        INTEGER NOT NULL DEFAULT 180,
+    telemetry_influx_days  INTEGER NOT NULL DEFAULT 30,
+    updated_at             TIMESTAMPTZ,
+    updated_by             UUID REFERENCES users(id)
+);
+
+-- ============================================
+-- INDEXES
+-- ============================================
+CREATE INDEX idx_memberships_user ON memberships(user_id);
+CREATE INDEX idx_memberships_site ON memberships(site_id);
+CREATE INDEX idx_devices_site ON devices(site_id);
+CREATE INDEX idx_devices_status ON devices(status);
+CREATE INDEX idx_tags_device ON tags(device_id);
+CREATE INDEX idx_alert_rules_tag ON alert_rules(tag_id);
+CREATE INDEX idx_alert_rules_site ON alert_rules(site_id);
+CREATE INDEX idx_control_config_tag ON control_config(tag_id);
+CREATE INDEX idx_control_logs_site_device ON control_logs(site_id, device_id);
+CREATE INDEX idx_alert_logs_site_device ON alert_logs(site_id, device_id);
+CREATE INDEX idx_alert_logs_status ON alert_logs(status);
+CREATE INDEX idx_pid_widgets_diagram ON pid_widgets(diagram_id);
+CREATE INDEX idx_audit_logs_site ON audit_logs(site_id);
+CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX idx_system_event_logs_site ON system_event_logs(site_id);

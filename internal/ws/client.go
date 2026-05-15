@@ -22,9 +22,7 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Trong production nên giới hạn origin
-	},
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 type Client struct {
@@ -32,17 +30,19 @@ type Client struct {
 	conn        *websocket.Conn
 	send        chan []byte
 	userID      uuid.UUID
-	permissions map[string]string // key: siteID, value: role
+	permissions map[string]string // siteID -> role
 	mu          sync.Mutex
 }
 
 func (c *Client) loadPermissions() {
-	rows, err := c.hub.store.Pool.Query(context.Background(), // hoặc dùng context từ request
+	rows, err := c.hub.store.Pool.Query(context.Background(),
 		"SELECT site_id, role FROM memberships WHERE user_id = $1", c.userID)
 	if err != nil {
+		log.Printf("WS loadPermissions error: %v", err)
 		return
 	}
 	defer rows.Close()
+
 	c.permissions = make(map[string]string)
 	for rows.Next() {
 		var siteID uuid.UUID
@@ -51,6 +51,7 @@ func (c *Client) loadPermissions() {
 			c.permissions[siteID.String()] = role
 		}
 	}
+	log.Printf("WS client %s loaded %d sites", c.userID, len(c.permissions))
 }
 
 func (c *Client) readPump() {
@@ -74,50 +75,91 @@ func (c *Client) readPump() {
 			break
 		}
 
-		var msg ClientMessage
+		var msg WSMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
-			c.send <- mustMarshal(ServerMessage{Type: "error", Message: "invalid message format"})
+			c.send <- c.errorMessage("invalid message format", "PARSE_ERROR")
 			continue
 		}
 
-		switch msg.Action {
-		case "sub":
-			if msg.SiteID == "" || msg.DeviceID == "" {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "site_id and device_id required"})
+		switch msg.Event {
+		case "subscribe":
+			var p SubscribePayload
+			if err := json.Unmarshal(msg.Payload, &p); err != nil {
+				c.send <- c.errorMessage("invalid subscribe payload", "PARSE_ERROR")
 				continue
 			}
-			// 1. Kiểm tra quyền
-			if _, ok := c.permissions[msg.SiteID]; !ok {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "forbidden"})
+			if p.SiteID == "" || p.DeviceID == "" {
+				c.send <- c.errorMessage("site_id and device_id required", "INVALID_PARAMS")
 				continue
 			}
-			// 2. Kiểm tra device có thuộc site không
+
+			// Kiểm tra quyền
+			if _, ok := c.permissions[p.SiteID]; !ok {
+				c.send <- c.makeMessage("sub_error", ErrorPayload{Message: "forbidden", Code: "FORBIDDEN"})
+				continue
+			}
+
+			// Kiểm tra device tồn tại trong site
 			var exists bool
 			err := c.hub.store.Pool.QueryRow(context.Background(),
 				"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)",
-				msg.DeviceID, msg.SiteID).Scan(&exists)
+				p.DeviceID, p.SiteID).Scan(&exists)
 			if err != nil || !exists {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "device not found in site"})
+				c.send <- c.makeMessage("sub_error", ErrorPayload{Message: "device not found in site", Code: "NOT_FOUND"})
 				continue
 			}
-			// 3. Đăng ký subscription
-			c.hub.subscribe <- subscription{client: c, siteID: msg.SiteID, deviceID: msg.DeviceID}
-			c.send <- mustMarshal(ServerMessage{Type: "sub_ok", SiteID: msg.SiteID, DeviceID: msg.DeviceID})
-			log.Printf("WS client subscribed to device %s in site %s", msg.DeviceID, msg.SiteID)
 
-		case "unsub":
-			if msg.SiteID == "" || msg.DeviceID == "" {
-				c.send <- mustMarshal(ServerMessage{Type: "error", Message: "site_id and device_id required"})
+			c.hub.subscribe <- subscription{client: c, siteID: p.SiteID, deviceID: p.DeviceID}
+			c.send <- c.makeMessage("sub_ok", SubOkPayload{SiteID: p.SiteID, DeviceID: p.DeviceID})
+			log.Printf("WS client subscribed to device %s in site %s", p.DeviceID, p.SiteID)
+
+		case "unsubscribe":
+			var p SubscribePayload
+			if err := json.Unmarshal(msg.Payload, &p); err != nil {
+				c.send <- c.errorMessage("invalid unsubscribe payload", "PARSE_ERROR")
 				continue
 			}
-			c.hub.unsubscribe <- subscription{client: c, siteID: msg.SiteID, deviceID: msg.DeviceID}
+			if p.SiteID == "" || p.DeviceID == "" {
+				c.send <- c.errorMessage("site_id and device_id required", "INVALID_PARAMS")
+				continue
+			}
+			c.hub.unsubscribe <- subscription{client: c, siteID: p.SiteID, deviceID: p.DeviceID}
+
+		case "control":
+			var p ControlPayload
+			if err := json.Unmarshal(msg.Payload, &p); err != nil {
+				c.send <- c.errorMessage("invalid control payload", "PARSE_ERROR")
+				continue
+			}
+			if p.DeviceID == "" || p.TagName == "" || p.Value == "" {
+				c.send <- c.errorMessage("device_id, tag_name, value required", "INVALID_PARAMS")
+				continue
+			}
+
+			// Xác định site của device và kiểm tra quyền
+			var siteID uuid.UUID
+			err := c.hub.store.Pool.QueryRow(context.Background(),
+				"SELECT site_id FROM devices WHERE id = $1", p.DeviceID).Scan(&siteID)
+			if err != nil {
+				c.send <- c.makeMessage("control_ack", ControlAckPayload{LogID: "", Status: "FAILED"})
+				continue
+			}
+			role, ok := c.permissions[siteID.String()]
+			if !ok || (role != "admin" && role != "operator") {
+				c.send <- c.makeMessage("control_ack", ControlAckPayload{LogID: "", Status: "FORBIDDEN"})
+				continue
+			}
+
+			// Gửi vào channel để ControlHandler xử lý (hoặc xử lý trực tiếp ở đây)
+			c.hub.controlRequests <- controlRequest{
+				client:   c,
+				siteID:   siteID.String(),
+				deviceID: p.DeviceID,
+				tagName:  p.TagName,
+				value:    p.Value,
+			}
 		}
 	}
-}
-
-func mustMarshal(v interface{}) []byte {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 func (c *Client) writePump() {
@@ -126,7 +168,6 @@ func (c *Client) writePump() {
 		ticker.Stop()
 		c.conn.Close()
 	}()
-
 	for {
 		select {
 		case message, ok := <-c.send:
@@ -135,7 +176,6 @@ func (c *Client) writePump() {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			log.Printf("WS sending: %s", string(message)) // <-- thêm dòng này
 			w, err := c.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				return
@@ -151,4 +191,19 @@ func (c *Client) writePump() {
 			}
 		}
 	}
+}
+
+func (c *Client) makeMessage(event string, payload interface{}) []byte {
+	data, _ := json.Marshal(payload)
+	msg := WSMessage{
+		Event:     event,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Payload:   data,
+	}
+	raw, _ := json.Marshal(msg)
+	return raw
+}
+
+func (c *Client) errorMessage(message, code string) []byte {
+	return c.makeMessage("error", ErrorPayload{Message: message, Code: code})
 }

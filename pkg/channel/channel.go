@@ -1,10 +1,7 @@
 package channel
 
-import (
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
-// RealTimeUpdate là dữ liệu thời gian thực gửi từ Ingest đến WebSocket Hub
 type RealTimeUpdate struct {
 	Type      string                 `json:"type"`
 	SiteID    uuid.UUID              `json:"site_id"`
@@ -13,17 +10,14 @@ type RealTimeUpdate struct {
 	Tags      map[string]interface{} `json:"tags"`
 }
 
-// MetadataEvent là sự kiện thay đổi metadata (tạo/xóa device, tag)
-type MetadataEvent struct {
-	Action   string      `json:"action"` // "device_created", "device_deleted", "tag_created", "tag_deleted"
-	SiteID   uuid.UUID   `json:"site_id"`
-	DeviceID uuid.UUID   `json:"device_id"`
-	TagID    *uuid.UUID  `json:"tag_id,omitempty"`
-	Payload  interface{} `json:"payload,omitempty"`
+type AlertNotification struct {
+	AlertID  string    `json:"alert_id"`
+	SiteID   uuid.UUID `json:"site_id"`
+	Severity string    `json:"severity"`
+	Message  string    `json:"message"`
+	DeviceID string    `json:"device_id,omitempty"`
+	TagName  string    `json:"tag_name,omitempty"`
 }
 
-// RealTimeDataChan là kênh giao tiếp Ingest -> WS Hub
 var RealTimeDataChan = make(chan RealTimeUpdate, 1000)
-
-// MetadataEventChan là kênh giao tiếp API -> Ingest/WS Hub (tùy chọn)
-var MetadataEventChan = make(chan MetadataEvent, 100)
+var AlertNotificationChan = make(chan AlertNotification, 500)
