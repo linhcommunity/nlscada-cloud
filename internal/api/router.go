@@ -129,13 +129,13 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 
 	// WebSocket (authenticated qua query string)
 	r.Get("/v1/ws", func(w http.ResponseWriter, r *http.Request) {
-		// Lấy token từ query string
-		tokenStr := r.URL.Query().Get("token")
-		if tokenStr == "" {
-			http.Error(w, "missing token", http.StatusUnauthorized)
+		// Đọc cookie thay vì query string
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
+			http.Error(w, "missing session", http.StatusUnauthorized)
 			return
 		}
-		claims, err := auth.VerifyToken(jwtSecret, tokenStr)
+		claims, err := auth.VerifyToken(jwtSecret, cookie.Value)
 		if err != nil {
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return

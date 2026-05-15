@@ -78,7 +78,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"user_id": userID,
 		"email":   req.Email,
-		// "name":    req.Name,
+		"name":    req.Name,
 		"message": "registration successful. Please login to get your access token.",
 	}
 
@@ -89,11 +89,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 type loginRequest struct {
 	Email    string `json:"email"`
+	Name     string `json:"name,omitempty"` // không bắt buộc, chỉ để phản hồi lại cho client
 	Password string `json:"password"`
 }
 
 type loginResponse struct {
-	// Token   string `json:"token"`
+	Email   string `json:"email,omitempty"`
+	Name    string `json:"name,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 
@@ -132,7 +134,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Đã xảy ra lỗi nội bộ!")
 		return
 	}
-	response.JSONWithCookie(w, http.StatusOK, loginResponse{Message: "Đăng nhập thành công."}, token, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
+	response.JSONWithCookie(w, http.StatusOK, loginResponse{Email: req.Email, Name: req.Name, Message: "Đăng nhập thành công."}, token, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
 }
 
 // --- Refresh ---

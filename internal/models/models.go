@@ -17,6 +17,7 @@ type Site struct {
 type User struct {
 	ID           uuid.UUID `json:"id"            db:"id"`
 	Email        string    `json:"email"         db:"email"`
+	Name         string    `json:"name"          db:"name"`
 	PasswordHash string    `json:"-"             db:"password_hash"` // không serialize ra JSON
 	CreatedAt    time.Time `json:"created_at"    db:"created_at"`
 }
