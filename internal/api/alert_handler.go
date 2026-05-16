@@ -24,7 +24,18 @@ func NewAlertHandler(store *postgres.Store) *AlertHandler {
 	return &AlertHandler{store: store}
 }
 
-// List trả về danh sách cảnh báo của site
+// @Summary Danh sách cảnh báo
+// @Tags Alerts
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param status query string false "ACTIVE, ACKNOWLEDGED, RESOLVED"
+// @Param severity query string false "INFO, WARNING, CRITICAL"
+// @Param device_id query string false "Lọc theo device UUID"
+// @Param page query int false "Số trang"
+// @Param limit query int false "Số bản ghi/trang"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.AlertLog} "Danh sách cảnh báo"
+// @Router /sites/{siteID}/alerts [get]
 func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -95,7 +106,25 @@ func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSONWithPagination(w, http.StatusOK, alerts, page, limit, 0)
 }
 
-// Create tạo cảnh báo thủ công
+type CreateAlertRequest struct {
+	DeviceID       *string `json:"device_id"` // optional
+	TagName        string  `json:"tag_name"`
+	TriggeredValue float64 `json:"triggered_value"`
+	ThresholdValue float64 `json:"threshold_value"`
+	Severity       string  `json:"severity"`
+	Message        string  `json:"message"`
+}
+
+// @Summary Tạo cảnh báo thủ công
+// @Tags Alerts
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body CreateAlertRequest true "Thông tin cảnh báo"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.AlertLog} "Cảnh báo đã tạo"
+// @Failure 400 {object} response.ErrorResponse "Dữ liệu không hợp lệ"
+// @Router /sites/{siteID}/alerts [post]
 func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -103,16 +132,18 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		DeviceID       *string `json:"device_id"` // optional
-		TagName        string  `json:"tag_name"`
-		TriggeredValue float64 `json:"triggered_value"`
-		ThresholdValue float64 `json:"threshold_value"`
-		Severity       string  `json:"severity"`
-		Message        string  `json:"message"`
+	var input CreateAlertRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Thêm yêu cầu không hợp lệ")
+		return
+	}
+
+	// Validate severity
+	if input.Severity != "INFO" && input.Severity != "WARNING" && input.Severity != "CRITICAL" {
+		response.Error(w, http.StatusBadRequest, "INVALID_SEVERITY", "Mức độ nghiêm trọng không hợp lệ")
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Thân yêu cầu không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Thêm yêu cầu không hợp lệ")
 		return
 	}
 
@@ -149,7 +180,21 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, a)
 }
 
-// Update cập nhật thông tin cảnh báo (message, severity)
+type UpdateAlertRequest struct {
+	Message  *string `json:"message,omitempty"`
+	Severity *string `json:"severity,omitempty"`
+}
+
+// @Summary Cập nhật cảnh báo
+// @Tags Alerts
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param alertID path string true "Alert UUID"
+// @Param request body UpdateAlertRequest true "Các trường cần cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.AlertLog} "Cảnh báo đã cập nhật"
+// @Router /sites/{siteID}/alerts/{alertID} [put]
 func (h *AlertHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -176,10 +221,7 @@ func (h *AlertHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Message  *string `json:"message,omitempty"`
-		Severity *string `json:"severity,omitempty"`
-	}
+	var input UpdateAlertRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Thân yêu cầu không hợp lệ")
 		return
@@ -222,7 +264,13 @@ func (h *AlertHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, a)
 }
 
-// Delete xóa cảnh báo
+// @Summary Xóa cảnh báo
+// @Tags Alerts
+// @Param siteID path string true "Site UUID"
+// @Param alertID path string true "Alert UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Cảnh báo đã xóa"
+// @Router /sites/{siteID}/alerts/{alertID} [delete]
 func (h *AlertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -258,7 +306,13 @@ func (h *AlertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, nil)
 }
 
-// Acknowledge xác nhận cảnh báo
+// @Summary Xác nhận cảnh báo
+// @Tags Alerts
+// @Param siteID path string true "Site UUID"
+// @Param alertID path string true "Alert UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Đã xác nhận"
+// @Router /sites/{siteID}/alerts/{alertID}/acknowledge [post]
 func (h *AlertHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -299,7 +353,13 @@ func (h *AlertHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, nil)
 }
 
-// Resolve đánh dấu cảnh báo đã giải quyết
+// @Summary Đánh dấu đã giải quyết
+// @Tags Alerts
+// @Param siteID path string true "Site UUID"
+// @Param alertID path string true "Alert UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Đã giải quyết"
+// @Router /sites/{siteID}/alerts/{alertID}/resolve [post]
 func (h *AlertHandler) Resolve(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

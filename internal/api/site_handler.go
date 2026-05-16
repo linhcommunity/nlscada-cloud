@@ -22,8 +22,26 @@ func NewSiteHandler(store *postgres.Store) *SiteHandler {
 	return &SiteHandler{store: store}
 }
 
-// CreateSite - POST /v1/sites
-// Create tạo site mới và gán user hiện tại làm admin
+type CreateSiteRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+type UpdateSiteRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// @Summary Tạo site mới
+// @Description Tạo site mới và user hiện tại trở thành admin của site đó
+// @Tags Sites
+// @Accept json
+// @Produce json
+// @Param request body CreateSiteRequest true "Tên site"
+// @Success 201 {object} response.SuccessResponse{data=models.Site} "Site đã tạo"
+// @Failure 400 {object} response.ErrorResponse "Dữ liệu không hợp lệ"
+// @Security BearerAuth
+// @Router /sites [post]
 func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r) // chứa userID
 	if claims == nil {
@@ -31,10 +49,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name string `json:"name"`
-		// Sau này có thể thêm các trường khác như description, config, v.v.
-	}
+	var input CreateSiteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -54,7 +69,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Tạo site
 	var siteID uuid.UUID
-	err = tx.QueryRow(ctx, "INSERT INTO sites (name) VALUES ($1) RETURNING id", input.Name).Scan(&siteID)
+	err = tx.QueryRow(ctx, "INSERT INTO sites (name, description) VALUES ($1, $2) RETURNING id", input.Name, input.Description).Scan(&siteID)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
 			http.Error(w, `{"error":"site name already exists"}`, http.StatusConflict)
@@ -101,7 +116,14 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// ListSites - GET /v1/sites (các site user tham gia)
+// @Summary Danh sách site của user
+// @Description Trả về tất cả site mà user hiện tại là thành viên, kèm role
+// @Tags Sites
+// @Produce json
+// @Success 200 {object} response.SuccessResponse{data=[]models.Site} "Danh sách site"
+// @Failure 401 {object} response.ErrorResponse "Chưa đăng nhập"
+// @Security BearerAuth
+// @Router /sites [get]
 func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
 	if claims == nil {
@@ -141,7 +163,16 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sites)
 }
 
-// UpdateSite - PUT /v1/sites/{id} (chỉ admin mới được phép)
+// @Summary Cập nhật site
+// @Tags Sites
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body UpdateSiteRequest true "Tên mới"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Site} "Site đã cập nhật"
+// @Failure 403 {object} response.ErrorResponse "Không có quyền admin"
+// @Router /sites/{siteID}/ [put]
 func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -153,9 +184,7 @@ func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name string `json:"name"`
-	}
+	var input UpdateSiteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -167,9 +196,9 @@ func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var s models.Site
 	err := h.store.Pool.QueryRow(r.Context(),
-		"UPDATE sites SET name = $1 WHERE id = $2 RETURNING id, name, created_at",
-		input.Name, membership.SiteID,
-	).Scan(&s.ID, &s.Name, &s.CreatedAt)
+		"UPDATE sites SET name = $1, description = $2 WHERE id = $3 RETURNING id, name, description, created_at",
+		input.Name, input.Description, membership.SiteID,
+	).Scan(&s.ID, &s.Name, &s.Description, &s.CreatedAt)
 	if err != nil {
 		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
 		return
@@ -178,7 +207,13 @@ func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(s)
 }
 
-// / DeleteSite - DELETE /v1/sites/{id} (chỉ admin mới được phép)
+// @Summary Xóa site
+// @Tags Sites
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Site đã xóa"
+// @Failure 403 {object} response.ErrorResponse "Không có quyền admin"
+// @Router /sites/{siteID}/ [delete]
 func (h *SiteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -200,7 +235,14 @@ func (h *SiteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GetSite - GET /v1/sites/{id}
+// @Summary Chi tiết site
+// @Tags Sites
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Site} "Thông tin site"
+// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Router /sites/{siteID}/ [get]
 func (h *SiteHandler) Get(w http.ResponseWriter, r *http.Request) {
 	log.Print("GetSite called")
 	claims := GetClaims(r)

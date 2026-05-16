@@ -19,7 +19,28 @@ func NewTagHandler(store *postgres.Store) *TagHandler {
 	return &TagHandler{store: store}
 }
 
-// ListTags trả về tags của một device
+type CreateTagRequest struct {
+	Name        string `json:"name"`
+	DataType    string `json:"data_type"`
+	Unit        string `json:"unit,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type UpdateTagRequest struct {
+	Name        string `json:"name,omitempty"`
+	DataType    string `json:"data_type,omitempty"`
+	Unit        string `json:"unit,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// @Summary Danh sách tag của thiết bị
+// @Tags Tags
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.Tag} "Danh sách tag"
+// @Router /sites/{siteID}/devices/{deviceID}/tags [get]
 func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -67,7 +88,16 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tags)
 }
 
-// CreateTag tạo tag mới
+// @Summary Tạo tag mới
+// @Tags Tags
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Param request body CreateTagRequest true "Thông tin tag"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.Tag} "Tag đã tạo"
+// @Router /sites/{siteID}/devices/{deviceID}/tags [post]
 func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -93,12 +123,7 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name        string `json:"name"`
-		DataType    string `json:"data_type"`
-		Unit        string `json:"unit,omitempty"`
-		Description string `json:"description,omitempty"`
-	}
+	var input CreateTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -121,7 +146,16 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(t)
 }
 
-// UpdateTag cập nhật tag
+// @Summary Cập nhật tag
+// @Tags Tags
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param tagID path string true "Tag UUID"
+// @Param request body UpdateTagRequest true "Các trường cần cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Tag} "Tag đã cập nhật"
+// @Router /sites/{siteID}/tags/{tagID} [put]
 func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -149,12 +183,7 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name        string `json:"name,omitempty"`
-		DataType    string `json:"data_type,omitempty"`
-		Unit        string `json:"unit,omitempty"`
-		Description string `json:"description,omitempty"`
-	}
+	var input UpdateTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -180,7 +209,13 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(t)
 }
 
-// DeleteTag xóa tag
+// @Summary Xóa tag
+// @Tags Tags
+// @Param siteID path string true "Site UUID"
+// @Param tagID path string true "Tag UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse
+// @Router /sites/{siteID}/tags/{tagID} [delete]
 func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

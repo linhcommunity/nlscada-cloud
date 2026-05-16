@@ -18,7 +18,13 @@ func NewSiteConfigHandler(store *postgres.Store) *SiteConfigHandler {
 	return &SiteConfigHandler{store: store}
 }
 
-// GetConfig trả về toàn bộ cấu hình của site (devices, tags, alert_rules, control_config)
+// @Summary Cấu hình tổng hợp cho Gateway
+// @Tags Site Config
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Cấu hình đầy đủ"
+// @Router /sites/{siteID}/config [get]
 func (h *SiteConfigHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

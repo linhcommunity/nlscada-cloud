@@ -15,13 +15,17 @@ var (
 
 type Claims struct {
 	UserID uuid.UUID `json:"user_id"`
+	Name   string    `json:"name"`
+	Email  string    `json:"email"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken tạo access token từ membership
-func GenerateToken(secret string, userID uuid.UUID) (string, error) {
+func GenerateToken(secret string, userID uuid.UUID, email string, name string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
+		Name:   name,
+		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

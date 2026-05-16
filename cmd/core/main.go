@@ -16,6 +16,19 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// @title           NL SCADA Center API
+// @version         1.0
+// @description     Backend API for NL SCADA Cloud
+// @contact.name    Linh Community
+// @contact.url     https://github.com/linhcommunity/nlscada-cloud
+
+// @host            localhost:8080
+// @BasePath        /v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Sử dụng "Bearer <token>", nhưng cookie session_token cũng được chấp nhận khi gọi từ browser
 func main() {
 	cfg := config.Load()
 

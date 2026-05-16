@@ -128,37 +128,3 @@ func GetMembership(r *http.Request) *struct {
 	}
 	return &m
 }
-
-// CORSMiddleware cấu hình quyền truy cập cross-origin bảo mật cho Frontend
-func CORSMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		allowedOrigins := map[string]bool{
-			"http://localhost:5173":  true,
-			"https://yourdomain.com": true,
-		}
-		// 1. Cấu hình cụ thể tên miền Frontend, tuyệt đối không dùng "*" khi có Credentials
-		if allowedOrigins[origin] {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		}
-
-		// 2. Cho phép trình duyệt tự động gửi và nhận HttpOnly Cookie (Credentials)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-		// 3. Cho phép các phương thức HTTP cần thiết
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-
-		// 4. Cho phép header Content-Type từ Frontend gửi lên khi truyền JSON body
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		// 5. Xử lý Request Preflight (Phương thức OPTIONS)
-		// Trình duyệt sẽ tự động gửi một request OPTIONS trước để kiểm tra cấu hình CORS
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Cho phép request đi tiếp vào các Middleware khác hoặc Handler logic
-		next.ServeHTTP(w, r)
-	})
-}

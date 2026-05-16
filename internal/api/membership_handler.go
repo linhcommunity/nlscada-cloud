@@ -20,7 +20,22 @@ func NewMembershipHandler(store *postgres.Store) *MembershipHandler {
 	return &MembershipHandler{store: store}
 }
 
-// ListMembers trả về danh sách thành viên của site
+type InviteRequest struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+type UpdateRoleRequest struct {
+	Role string `json:"role"`
+}
+
+// @Summary Danh sách thành viên
+// @Tags Memberships
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.Membership} "Danh sách thành viên"
+// @Router /sites/{siteID}/members [get]
 func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
@@ -64,7 +79,16 @@ func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(members)
 }
 
-// Invite mời user vào site (chỉ admin)
+// @Summary Mời thành viên
+// @Tags Memberships
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body InviteRequest true "Email và role"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.Membership} "Đã mời thành công"
+// @Failure 404 {object} response.ErrorResponse "User chưa đăng ký"
+// @Router /sites/{siteID}/members [post]
 func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
@@ -72,10 +96,7 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Email string `json:"email"`
-		Role  string `json:"role"` // "operator" hoặc "viewer"
-	}
+	var input InviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -112,7 +133,16 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(m)
 }
 
-// UpdateRole sửa role của thành viên
+// @Summary Đổi role thành viên
+// @Tags Memberships
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param userID path string true "User UUID"
+// @Param request body UpdateRoleRequest true "Role mới"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Membership} "Role đã cập nhật"
+// @Router /sites/{siteID}/members/{userID} [put]
 func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
@@ -125,9 +155,7 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Role string `json:"role"`
-	}
+	var input UpdateRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -146,7 +174,13 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(m)
 }
 
-// Remove xóa thành viên khỏi site
+// @Summary Xóa thành viên
+// @Tags Memberships
+// @Param siteID path string true "Site UUID"
+// @Param userID path string true "User UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse
+// @Router /sites/{siteID}/members/{userID} [delete]
 func (h *MembershipHandler) Remove(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {

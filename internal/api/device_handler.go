@@ -19,7 +19,24 @@ func NewDeviceHandler(store *postgres.Store) *DeviceHandler {
 	return &DeviceHandler{store: store}
 }
 
-// ListDevices trả về tất cả devices thuộc site của user
+type CreateDeviceRequest struct {
+	Name         string `json:"name"`
+	DeviceType   string `json:"device_type"`
+	MqttClientID string `json:"mqtt_client_id,omitempty"`
+}
+
+type UpdateDeviceRequest struct {
+	Name       string `json:"name"`
+	DeviceType string `json:"device_type"`
+}
+
+// @Summary Danh sách thiết bị
+// @Tags Devices
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.Device} "Danh sách thiết bị"
+// @Router /sites/{siteID}/devices [get]
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -50,7 +67,15 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(devices)
 }
 
-// Get trả về chi tiết một device
+// @Summary Chi tiết thiết bị
+// @Tags Devices
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Device} "Chi tiết thiết bị"
+// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Router /sites/{siteID}/devices/{deviceID} [get]
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -79,18 +104,22 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(d)
 }
 
-// Create tạo device mới
+// @Summary Tạo thiết bị
+// @Tags Devices
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body CreateDeviceRequest true "Thông tin thiết bị"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.Device} "Thiết bị đã tạo"
+// @Router /sites/{siteID}/devices [post]
 func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	var input struct {
-		Name         string `json:"name"`
-		DeviceType   string `json:"device_type"`
-		MqttClientID string `json:"mqtt_client_id,omitempty"`
-	}
+	var input CreateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -114,7 +143,17 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(d)
 }
 
-// Update cập nhật device
+// @Summary Cập nhật thiết bị
+// @Tags Devices
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Param request body UpdateDeviceRequest true "Thông tin cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.Device} "Thiết bị đã cập nhật"
+// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Router /sites/{siteID}/devices/{deviceID} [put]
 func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -129,10 +168,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	siteID := membership.SiteID
 
-	var input struct {
-		Name       string `json:"name"`
-		DeviceType string `json:"device_type"`
-	}
+	var input UpdateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 		return
@@ -154,7 +190,14 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(d)
 }
 
-// Delete xóa device
+// @Summary Xóa thiết bị
+// @Tags Devices
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Security BearerAuth
+// @Success 204 "Đã xóa"
+// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Router /sites/{siteID}/devices/{deviceID} [delete]
 func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

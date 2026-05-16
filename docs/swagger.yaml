@@ -1,0 +1,2395 @@
+basePath: /v1
+definitions:
+  api.AddWidgetRequest:
+    properties:
+      device_id:
+        type: string
+      position_x:
+        type: number
+      position_y:
+        type: number
+      tag_name:
+        type: string
+      widget_type:
+        type: string
+    type: object
+  api.ControlRequest:
+    properties:
+      tag_name:
+        type: string
+      value:
+        type: string
+    type: object
+  api.CreateAlertRequest:
+    properties:
+      device_id:
+        description: optional
+        type: string
+      message:
+        type: string
+      severity:
+        type: string
+      tag_name:
+        type: string
+      threshold_value:
+        type: number
+      triggered_value:
+        type: number
+    type: object
+  api.CreateAlertRuleRequest:
+    properties:
+      description:
+        type: string
+      is_enabled:
+        type: boolean
+      max_value:
+        type: number
+      message_template:
+        type: string
+      min_value:
+        type: number
+      name:
+        type: string
+      severity:
+        type: string
+      tag_id:
+        type: string
+    type: object
+  api.CreateControlConfigRequest:
+    properties:
+      allowed_values:
+        type: object
+      control_type:
+        type: string
+      is_enabled:
+        type: boolean
+      tag_id:
+        type: string
+    type: object
+  api.CreateDeviceRequest:
+    properties:
+      device_type:
+        type: string
+      mqtt_client_id:
+        type: string
+      name:
+        type: string
+    type: object
+  api.CreateDiagramRequest:
+    properties:
+      background_url:
+        type: string
+      name:
+        type: string
+    type: object
+  api.CreateSiteRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  api.CreateTagRequest:
+    properties:
+      data_type:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      unit:
+        type: string
+    type: object
+  api.DataPoint:
+    properties:
+      tag: {}
+      time:
+        type: string
+      value: {}
+    type: object
+  api.InviteRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
+    type: object
+  api.UpdateAlertRequest:
+    properties:
+      message:
+        type: string
+      severity:
+        type: string
+    type: object
+  api.UpdateAlertRuleRequest:
+    properties:
+      description:
+        type: string
+      is_enabled:
+        type: boolean
+      max_value:
+        type: number
+      message_template:
+        type: string
+      min_value:
+        type: number
+      name:
+        type: string
+      severity:
+        type: string
+    type: object
+  api.UpdateControlConfigRequest:
+    properties:
+      allowed_values:
+        type: object
+      control_type:
+        type: string
+      is_enabled:
+        type: boolean
+    type: object
+  api.UpdateDeviceRequest:
+    properties:
+      device_type:
+        type: string
+      name:
+        type: string
+    type: object
+  api.UpdateRetentionRequest:
+    properties:
+      alert_logs_days:
+        type: integer
+      audit_logs_days:
+        type: integer
+      system_event_logs_days:
+        type: integer
+      telemetry_influx_days:
+        type: integer
+    type: object
+  api.UpdateRoleRequest:
+    properties:
+      role:
+        type: string
+    type: object
+  api.UpdateSiteRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  api.UpdateTagRequest:
+    properties:
+      data_type:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      unit:
+        type: string
+    type: object
+  api.UpdateWidgetRequest:
+    properties:
+      device_id:
+        type: string
+      position_x:
+        type: number
+      position_y:
+        type: number
+      tag_name:
+        type: string
+      widget_type:
+        type: string
+    type: object
+  api.UserInfo:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  api.loginRequest:
+    properties:
+      email:
+        type: string
+      name:
+        description: không bắt buộc, chỉ để phản hồi lại cho client
+        type: string
+      password:
+        type: string
+    type: object
+  api.loginResponse:
+    properties:
+      email:
+        type: string
+      message:
+        type: string
+      name:
+        type: string
+    type: object
+  api.registerRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  api.registerResponse:
+    properties:
+      email:
+        type: string
+      message:
+        description: Token    string    `json:"token"`
+        type: string
+    type: object
+  models.AlertLog:
+    properties:
+      acknowledged_at:
+        type: string
+      acknowledged_by:
+        type: string
+      created_at:
+        type: string
+      device_id:
+        description: nullable cho cảnh báo cấp site
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      resolved_at:
+        type: string
+      severity:
+        description: INFO, WARNING, CRITICAL
+        type: string
+      site_id:
+        type: string
+      status:
+        description: ACTIVE, ACKNOWLEDGED, RESOLVED
+        type: string
+      tag_name:
+        type: string
+      threshold_value:
+        type: number
+      triggered_value:
+        type: number
+    type: object
+  models.AlertRule:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      max_value:
+        type: number
+      message_template:
+        type: string
+      min_value:
+        type: number
+      name:
+        type: string
+      severity:
+        description: INFO, WARNING, CRITICAL
+        type: string
+      site_id:
+        type: string
+      tag_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.AuditLog:
+    properties:
+      action_type:
+        description: LOGIN, CREATE_DEVICE, UPDATE_THRESHOLD, DELETE_MEMBER
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      ip_address:
+        type: string
+      new_values:
+        description: JSONB
+        type: object
+      old_values:
+        description: JSONB
+        type: object
+      resource_target:
+        description: tên bảng
+        type: string
+      site_id:
+        type: string
+      target_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.ControlConfig:
+    properties:
+      allowed_values:
+        description: JSONB
+        type: object
+      control_type:
+        description: ON_OFF, SET_VALUE, OPEN_CLOSE
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      site_id:
+        type: string
+      tag_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.ControlLog:
+    properties:
+      acknowledged_at:
+        type: string
+      created_at:
+        type: string
+      device_id:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      previous_value:
+        type: string
+      requested_value:
+        type: string
+      sent_at:
+        type: string
+      site_id:
+        type: string
+      status:
+        description: PENDING, SENT, SUCCESS, FAILED, TIMEOUT
+        type: string
+      tag_name:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.Device:
+    properties:
+      created_at:
+        type: string
+      device_type:
+        type: string
+      id:
+        type: string
+      last_heartbeat:
+        type: string
+      mqtt_client_id:
+        type: string
+      name:
+        type: string
+      site_id:
+        type: string
+      status:
+        type: string
+    type: object
+  models.Membership:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+      site_id:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.PidDiagram:
+    properties:
+      background_url:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      site_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.PidWidget:
+    properties:
+      device_id:
+        type: string
+      diagram_id:
+        type: string
+      id:
+        type: string
+      position_x:
+        type: number
+      position_y:
+        type: number
+      tag_name:
+        type: string
+      widget_type:
+        description: TEXT, PUMP, VALVE
+        type: string
+    type: object
+  models.Site:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  models.SiteRetentionPolicy:
+    properties:
+      alert_logs_days:
+        type: integer
+      audit_logs_days:
+        type: integer
+      id:
+        type: string
+      site_id:
+        type: string
+      system_event_logs_days:
+        type: integer
+      telemetry_influx_days:
+        type: integer
+      updated_at:
+        type: string
+      updated_by:
+        type: string
+    type: object
+  models.SystemEventLog:
+    properties:
+      created_at:
+        type: string
+      device_id:
+        description: nullable nếu là lỗi toàn hệ thống
+        type: string
+      event_type:
+        description: DEVICE_OFFLINE, GATEWAY_CONNECTED, FIRMWARE_UPDATE_START
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      severity_level:
+        description: INFO, WARNING, ERROR
+        type: string
+      site_id:
+        type: string
+    type: object
+  models.Tag:
+    properties:
+      created_at:
+        type: string
+      data_type:
+        type: string
+      description:
+        type: string
+      device_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      unit:
+        type: string
+    type: object
+  response.ErrorPayload:
+    properties:
+      code:
+        type: string
+      details:
+        items:
+          $ref: '#/definitions/response.ValidationErrorDetail'
+        type: array
+      message:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  response.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/response.ErrorPayload'
+      success:
+        type: boolean
+    type: object
+  response.Meta:
+    properties:
+      pagination:
+        allOf:
+        - $ref: '#/definitions/response.Pagination'
+        description: Chỉ xuất hiện khi có phân trang, nếu không có sẽ tự động ẩn đi
+      timestamp:
+        type: string
+    type: object
+  response.Pagination:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  response.SuccessResponse:
+    properties:
+      data: {}
+      meta:
+        $ref: '#/definitions/response.Meta'
+      success:
+        type: boolean
+    type: object
+  response.ValidationErrorDetail:
+    properties:
+      field:
+        type: string
+      issue:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: Linh Community
+    url: https://github.com/linhcommunity/nlscada-cloud
+  description: Backend API for NL SCADA Cloud
+  title: NL SCADA Center API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Xác thực người dùng và trả về JWT token
+      parameters:
+      - description: Thông tin đăng nhập
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Đăng nhập thành công
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.loginResponse'
+              type: object
+        "400":
+          description: Lỗi dữ liệu
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Tài khoản hoặc mật khẩu không chính xác
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Đăng nhập
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Xóa cookie session_token để đăng xuất người dùng
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Đăng xuất thành công
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "405":
+          description: Phương thức không được hỗ trợ
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Đăng xuất
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Tạo token mới dựa trên refresh token (ở đây dùng cookie session_token)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Làm mới token thành công
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.loginResponse'
+              type: object
+        "401":
+          description: Phiên đăng nhập không hợp lệ hoặc đã hết hạn
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Làm mới token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Tạo người dùng mới. Không tạo site hay membership.
+      parameters:
+      - description: Thông tin đăng ký
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Đăng ký thành công
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.registerResponse'
+              type: object
+        "400":
+          description: Lỗi dữ liệu
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Email đã tồn tại
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Đăng ký
+      tags:
+      - Auth
+  /sites:
+    get:
+      description: Trả về tất cả site mà user hiện tại là thành viên, kèm role
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách site
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Site'
+                  type: array
+              type: object
+        "401":
+          description: Chưa đăng nhập
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Danh sách site của user
+      tags:
+      - Sites
+    post:
+      consumes:
+      - application/json
+      description: Tạo site mới và user hiện tại trở thành admin của site đó
+      parameters:
+      - description: Tên site
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSiteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Site đã tạo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Site'
+              type: object
+        "400":
+          description: Dữ liệu không hợp lệ
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tạo site mới
+      tags:
+      - Sites
+  /sites/{siteID}/:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Site đã xóa
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "403":
+          description: Không có quyền admin
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa site
+      tags:
+      - Sites
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Thông tin site
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Site'
+              type: object
+        "404":
+          description: Không tìm thấy
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chi tiết site
+      tags:
+      - Sites
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Tên mới
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateSiteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Site đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Site'
+              type: object
+        "403":
+          description: Không có quyền admin
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật site
+      tags:
+      - Sites
+  /sites/{siteID}/alert-rules:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách rule
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AlertRule'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách alert rules
+      tags:
+      - Alert Rules
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Thông tin rule
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateAlertRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Rule đã tạo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AlertRule'
+              type: object
+        "400":
+          description: Dữ liệu không hợp lệ
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tạo alert rule
+      tags:
+      - Alert Rules
+  /sites/{siteID}/alert-rules/{ruleID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Rule UUID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Rule đã xóa
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa alert rule
+      tags:
+      - Alert Rules
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Rule UUID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AlertRule'
+              type: object
+        "404":
+          description: Rule không tồn tại
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chi tiết alert rule
+      tags:
+      - Alert Rules
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Rule UUID
+        in: path
+        name: ruleID
+        required: true
+        type: string
+      - description: Các trường cần cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateAlertRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Rule đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AlertRule'
+              type: object
+        "400":
+          description: Không có gì để cập nhật
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật alert rule
+      tags:
+      - Alert Rules
+  /sites/{siteID}/alerts:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: ACTIVE, ACKNOWLEDGED, RESOLVED
+        in: query
+        name: status
+        type: string
+      - description: INFO, WARNING, CRITICAL
+        in: query
+        name: severity
+        type: string
+      - description: Lọc theo device UUID
+        in: query
+        name: device_id
+        type: string
+      - description: Số trang
+        in: query
+        name: page
+        type: integer
+      - description: Số bản ghi/trang
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách cảnh báo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AlertLog'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách cảnh báo
+      tags:
+      - Alerts
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Thông tin cảnh báo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Cảnh báo đã tạo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AlertLog'
+              type: object
+        "400":
+          description: Dữ liệu không hợp lệ
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tạo cảnh báo thủ công
+      tags:
+      - Alerts
+  /sites/{siteID}/alerts/{alertID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Alert UUID
+        in: path
+        name: alertID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Cảnh báo đã xóa
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa cảnh báo
+      tags:
+      - Alerts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Alert UUID
+        in: path
+        name: alertID
+        required: true
+        type: string
+      - description: Các trường cần cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cảnh báo đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AlertLog'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật cảnh báo
+      tags:
+      - Alerts
+  /sites/{siteID}/alerts/{alertID}/acknowledge:
+    post:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Alert UUID
+        in: path
+        name: alertID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Đã xác nhận
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xác nhận cảnh báo
+      tags:
+      - Alerts
+  /sites/{siteID}/alerts/{alertID}/resolve:
+    post:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Alert UUID
+        in: path
+        name: alertID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Đã giải quyết
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Đánh dấu đã giải quyết
+      tags:
+      - Alerts
+  /sites/{siteID}/config:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cấu hình đầy đủ
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Cấu hình tổng hợp cho Gateway
+      tags:
+      - Site Config
+  /sites/{siteID}/control-configs:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách config
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ControlConfig'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách control config
+      tags:
+      - Control Config
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Thông tin config
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateControlConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ControlConfig'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Tạo control config
+      tags:
+      - Control Config
+  /sites/{siteID}/control-configs/{configID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Config UUID
+        in: path
+        name: configID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa control config
+      tags:
+      - Control Config
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Config UUID
+        in: path
+        name: configID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ControlConfig'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Chi tiết control config
+      tags:
+      - Control Config
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Config UUID
+        in: path
+        name: configID
+        required: true
+        type: string
+      - description: Các trường cần cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateControlConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ControlConfig'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật control config
+      tags:
+      - Control Config
+  /sites/{siteID}/devices:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách thiết bị
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Device'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách thiết bị
+      tags:
+      - Devices
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Thông tin thiết bị
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Thiết bị đã tạo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Tạo thiết bị
+      tags:
+      - Devices
+  /sites/{siteID}/devices/{deviceID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Đã xóa
+        "404":
+          description: Không tìm thấy
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa thiết bị
+      tags:
+      - Devices
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chi tiết thiết bị
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+        "404":
+          description: Không tìm thấy
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chi tiết thiết bị
+      tags:
+      - Devices
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      - description: Thông tin cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateDeviceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Thiết bị đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+        "404":
+          description: Không tìm thấy
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cập nhật thiết bị
+      tags:
+      - Devices
+  /sites/{siteID}/devices/{deviceID}/control:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      - description: Lệnh điều khiển
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ControlRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Lệnh đã gửi
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ControlLog'
+              type: object
+        "403":
+          description: Không có quyền
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Gửi lệnh điều khiển
+      tags:
+      - Control
+  /sites/{siteID}/devices/{deviceID}/control/logs:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      - description: Số trang
+        in: query
+        name: page
+        type: integer
+      - description: Số bản ghi/trang
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách lệnh
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ControlLog'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Lịch sử lệnh điều khiển
+      tags:
+      - Control
+  /sites/{siteID}/devices/{deviceID}/data:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      - description: Tên tag (phân cách bằng dấu phẩy)
+        in: query
+        name: tags
+        type: string
+      - description: Thời gian bắt đầu (ISO 8601)
+        in: query
+        name: from
+        type: string
+      - description: Thời gian kết thúc (ISO 8601)
+        in: query
+        name: to
+        type: string
+      - description: Số bản ghi tối đa
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.DataPoint'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Truy vấn dữ liệu lịch sử
+      tags:
+      - Data
+  /sites/{siteID}/devices/{deviceID}/tags:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách tag
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Tag'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách tag của thiết bị
+      tags:
+      - Tags
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Device UUID
+        in: path
+        name: deviceID
+        required: true
+        type: string
+      - description: Thông tin tag
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateTagRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Tag đã tạo
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Tag'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Tạo tag mới
+      tags:
+      - Tags
+  /sites/{siteID}/logs/audit:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Lọc theo user
+        in: query
+        name: user_id
+        type: string
+      - description: Lọc theo loại hành động
+        in: query
+        name: action_type
+        type: string
+      - description: Số trang
+        in: query
+        name: page
+        type: integer
+      - description: Số bản ghi/trang
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AuditLog'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Nhật ký hoạt động
+      tags:
+      - Audit Logs
+  /sites/{siteID}/logs/audit/{logID}:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Log UUID
+        in: path
+        name: logID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AuditLog'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Chi tiết audit log
+      tags:
+      - Audit Logs
+  /sites/{siteID}/logs/events:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Lọc theo device
+        in: query
+        name: device_id
+        type: string
+      - description: Lọc theo loại sự kiện
+        in: query
+        name: event_type
+        type: string
+      - description: Số trang
+        in: query
+        name: page
+        type: integer
+      - description: Số bản ghi/trang
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách sự kiện
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.SystemEventLog'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Nhật ký sự kiện hệ thống
+      tags:
+      - Event Logs
+  /sites/{siteID}/logs/events/{eventID}:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Event UUID
+        in: path
+        name: eventID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chi tiết sự kiện
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.SystemEventLog'
+              type: object
+        "404":
+          description: Không tìm thấy
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Chi tiết event log
+      tags:
+      - Event Logs
+  /sites/{siteID}/members:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách thành viên
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Membership'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách thành viên
+      tags:
+      - Memberships
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Email và role
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.InviteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Đã mời thành công
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Membership'
+              type: object
+        "404":
+          description: User chưa đăng ký
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mời thành viên
+      tags:
+      - Memberships
+  /sites/{siteID}/members/{userID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: User UUID
+        in: path
+        name: userID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa thành viên
+      tags:
+      - Memberships
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: User UUID
+        in: path
+        name: userID
+        required: true
+        type: string
+      - description: Role mới
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Role đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Membership'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Đổi role thành viên
+      tags:
+      - Memberships
+  /sites/{siteID}/pid-diagrams:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.PidDiagram'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách sơ đồ P&ID
+      tags:
+      - P&ID
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Thông tin sơ đồ
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateDiagramRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.PidDiagram'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Tạo sơ đồ P&ID
+      tags:
+      - P&ID
+  /sites/{siteID}/pid-diagrams/{diagramID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Diagram UUID
+        in: path
+        name: diagramID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa sơ đồ P&ID
+      tags:
+      - P&ID
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Diagram UUID
+        in: path
+        name: diagramID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.PidDiagram'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Chi tiết sơ đồ P&ID
+      tags:
+      - P&ID
+  /sites/{siteID}/pid-diagrams/{diagramID}/widgets:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Diagram UUID
+        in: path
+        name: diagramID
+        required: true
+        type: string
+      - description: Thông tin widget
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AddWidgetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.PidWidget'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Thêm widget vào sơ đồ
+      tags:
+      - P&ID
+  /sites/{siteID}/pid-diagrams/{diagramID}/widgets/{widgetID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Diagram UUID
+        in: path
+        name: diagramID
+        required: true
+        type: string
+      - description: Widget UUID
+        in: path
+        name: widgetID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa widget
+      tags:
+      - P&ID
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Diagram UUID
+        in: path
+        name: diagramID
+        required: true
+        type: string
+      - description: Widget UUID
+        in: path
+        name: widgetID
+        required: true
+        type: string
+      - description: Các trường cần cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateWidgetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.PidWidget'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật widget
+      tags:
+      - P&ID
+  /sites/{siteID}/retention-policies:
+    get:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chính sách hiện tại
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.SiteRetentionPolicy'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Xem chính sách xóa dữ liệu
+      tags:
+      - Retention
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Số ngày lưu trữ
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateRetentionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chính sách hiện tại
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.SiteRetentionPolicy'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật chính sách xóa dữ liệu
+      tags:
+      - Retention
+  /sites/{siteID}/retention-policies/trigger-manual:
+    post:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      responses:
+        "202":
+          description: Đã kích hoạt dọn dẹp
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Kích hoạt dọn dẹp ngay
+      tags:
+      - Retention
+  /sites/{siteID}/tags/{tagID}:
+    delete:
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Tag UUID
+        in: path
+        name: tagID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+      security:
+      - BearerAuth: []
+      summary: Xóa tag
+      tags:
+      - Tags
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      - description: Tag UUID
+        in: path
+        name: tagID
+        required: true
+        type: string
+      - description: Các trường cần cập nhật
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Tag đã cập nhật
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Tag'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cập nhật tag
+      tags:
+      - Tags
+  /users:
+    get:
+      description: Trả về danh sách tài khoản đã xác thực email để có thể mời vào
+        site
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Danh sách user
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.UserInfo'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Danh sách user đã xác thực
+      tags:
+      - Users
+  /users/me:
+    get:
+      description: Trả về thông tin tài khoản của user hiện đang đăng nhập
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Thông tin cá nhân
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.UserInfo'
+              type: object
+        "401":
+          description: Chưa xác thực
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Thông tin cá nhân
+      tags:
+      - Users
+securityDefinitions:
+  BearerAuth:
+    description: Sử dụng "Bearer <token>", nhưng cookie session_token cũng được chấp
+      nhận khi gọi từ browser
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

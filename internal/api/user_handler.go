@@ -18,7 +18,20 @@ func NewUserHandler(store *postgres.Store) *UserHandler {
 	return &UserHandler{store: store}
 }
 
-// Me - GET /v1/users/me
+type UserInfo struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// @Summary Thông tin cá nhân
+// @Description Trả về thông tin tài khoản của user hiện đang đăng nhập
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=UserInfo} "Thông tin cá nhân"
+// @Failure 401 {object} response.ErrorResponse "Chưa xác thực"
+// @Router /users/me [get]
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
 	if claims == nil {
@@ -49,7 +62,14 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// ListVerified - GET /v1/users (chỉ trả về user đã verified để mời)
+// ListVerified trả về danh sách user đã xác thực email (dùng để mời vào site)
+// @Summary Danh sách user đã xác thực
+// @Description Trả về danh sách tài khoản đã xác thực email để có thể mời vào site
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]UserInfo} "Danh sách user"
+// @Router /users [get]
 func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 	// Chỉ cần trả về danh sách user đã verified (không phân biệt tenant)
 	rows, err := h.store.Pool.Query(r.Context(),
@@ -60,12 +80,6 @@ func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	type UserInfo struct {
-		ID    uuid.UUID `json:"id"`
-		Email string    `json:"email"`
-		// EmailVerified bool      `json:"email_verified"`
-		CreatedAt time.Time `json:"created_at"`
-	}
 	var users []UserInfo
 	for rows.Next() {
 		var u UserInfo

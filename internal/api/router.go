@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	_ "nlscada-cloud/docs" // import để swagger có thể tìm thấy doc.go
 	"nlscada-cloud/internal/auth"
 	"nlscada-cloud/internal/db/influxdb"
 	"nlscada-cloud/internal/db/postgres"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWriter *influxdb.Writer, jwtSecret string, hub *ws.Hub, mqttClient *mqtt.Client) *chi.Mux {
@@ -28,6 +30,9 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		MaxAge:           300, // Thời gian cache preflight (giây)
 	}))
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 	// ============================================
 	// PUBLIC
 	// ============================================

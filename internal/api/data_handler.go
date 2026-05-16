@@ -22,6 +22,25 @@ func NewDataHandler(store *postgres.Store, reader *influxdb.Reader) *DataHandler
 	return &DataHandler{influxReader: reader, store: store}
 }
 
+// DataPoint là một điểm dữ liệu time-series trả về từ InfluxDB
+type DataPoint struct {
+	Time  string      `json:"time"`
+	Tag   interface{} `json:"tag"`
+	Value interface{} `json:"value"`
+}
+
+// @Summary Truy vấn dữ liệu lịch sử
+// @Tags Data
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Param tags query string false "Tên tag (phân cách bằng dấu phẩy)"
+// @Param from query string false "Thời gian bắt đầu (ISO 8601)"
+// @Param to query string false "Thời gian kết thúc (ISO 8601)"
+// @Param limit query int false "Số bản ghi tối đa"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]DataPoint}
+// @Router /sites/{siteID}/devices/{deviceID}/data [get]
 func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
 	// 1. Kiểm tra membership
 	membership := GetMembership(r)

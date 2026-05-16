@@ -22,7 +22,17 @@ func NewSystemEventHandler(store *postgres.Store) *SystemEventHandler {
 	return &SystemEventHandler{store: store}
 }
 
-// List trả về danh sách sự kiện hệ thống của site
+// @Summary Nhật ký sự kiện hệ thống
+// @Tags Event Logs
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param device_id query string false "Lọc theo device"
+// @Param event_type query string false "Lọc theo loại sự kiện"
+// @Param page query int false "Số trang"
+// @Param limit query int false "Số bản ghi/trang"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.SystemEventLog} "Danh sách sự kiện"
+// @Router /sites/{siteID}/logs/events [get]
 func (h *SystemEventHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -90,7 +100,15 @@ func (h *SystemEventHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSONWithPagination(w, http.StatusOK, events, page, limit, 0)
 }
 
-// Get trả về chi tiết một sự kiện hệ thống
+// @Summary Chi tiết event log
+// @Tags Event Logs
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param eventID path string true "Event UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.SystemEventLog} "Chi tiết sự kiện"
+// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Router /sites/{siteID}/logs/events/{eventID} [get]
 func (h *SystemEventHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

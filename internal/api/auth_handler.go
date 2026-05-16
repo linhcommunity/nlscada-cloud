@@ -32,14 +32,22 @@ type registerRequest struct {
 }
 
 type registerResponse struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
+	Email string `json:"email"`
 	// Token    string    `json:"token"`
 	Message string `json:"message"`
 }
 
-// Register chỉ tạo user mới. Không tạo site, không tạo membership, không trả về token.
-// Người dùng phải login để lấy token, sau đó tự tạo site hoặc được mời vào site.
+// Register tạo tài khoản người dùng mới
+// @Summary      Đăng ký
+// @Description  Tạo người dùng mới. Không tạo site hay membership.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body registerRequest true "Thông tin đăng ký"
+// @Success      201  {object}  response.SuccessResponse{data=registerResponse} "Đăng ký thành công"
+// @Failure      400  {object}  response.ErrorResponse "Lỗi dữ liệu"
+// @Failure      409  {object}  response.ErrorResponse "Email đã tồn tại"
+// @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -74,15 +82,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Phản hồi
-	resp := map[string]interface{}{
-		"user_id": userID,
-		"email":   req.Email,
-		"name":    req.Name,
-		"message": "registration successful. Please login to get your access token.",
-	}
-
-	response.JSON(w, http.StatusCreated, resp)
+	response.JSON(w, http.StatusCreated, registerResponse{Email: req.Email, Message: "Đăng ký thành công. Vui lòng đăng nhập để nhận token truy cập."})
 }
 
 // --- Login ---
@@ -99,6 +99,17 @@ type loginResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// Login xác thực người dùng và trả về JWT token
+// @Summary      Đăng nhập
+// @Description  Xác thực người dùng và trả về JWT token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body loginRequest true "Thông tin đăng nhập"
+// @Success      200  {object}  response.SuccessResponse{data=loginResponse} "Đăng nhập thành công"
+// @Failure      400  {object}  response.ErrorResponse "Lỗi dữ liệu"
+// @Failure      401  {object}  response.ErrorResponse "Tài khoản hoặc mật khẩu không chính xác"
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.Error(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Phương thức không được hỗ trợ")
@@ -129,7 +140,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Tạo token
-	token, err := auth.GenerateToken(h.jwtSecret, userID)
+	token, err := auth.GenerateToken(h.jwtSecret, userID, req.Email, req.Name)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Đã xảy ra lỗi nội bộ!")
 		return
@@ -137,8 +148,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	response.JSONWithCookie(w, http.StatusOK, loginResponse{Email: req.Email, Name: req.Name, Message: "Đăng nhập thành công."}, token, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
 }
 
-// --- Refresh ---
-
+// Refesh tạo token mới dựa trên refresh token (ở đây dùng cookie session_token)
+// @Summary      Làm mới token
+// @Description  Tạo token mới dựa trên refresh token (ở đây dùng cookie session_token)
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.SuccessResponse{data=loginResponse} "Làm mới token thành công"
+// @Failure      401  {object}  response.ErrorResponse "Phiên đăng nhập không hợp lệ hoặc đã hết hạn"
+// @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.Error(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Phương thức không hỗ trợ")
@@ -157,17 +175,24 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newToken, err := auth.GenerateToken(h.jwtSecret, claims.UserID)
+	newToken, err := auth.GenerateToken(h.jwtSecret, claims.UserID, claims.Email, claims.Name)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Đã xảy ra lỗi nội bộ!")
 		return
 	}
 
-	response.JSONWithCookie(w, http.StatusOK, loginResponse{Message: "Làm mới token thành công."}, newToken, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
+	response.JSONWithCookie(w, http.StatusOK, loginResponse{Email: claims.Email, Name: claims.Name, Message: "Làm mới token thành công."}, newToken, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
 }
 
-// --- Logout ---
-
+// Logout xóa cookie session_token để đăng xuất người dùng
+// @Summary      Đăng xuất
+// @Description  Xóa cookie session_token để đăng xuất người dùng
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.SuccessResponse "Đăng xuất thành công"
+// @Failure      405  {object}  response.ErrorResponse "Phương thức không được hỗ trợ"
+// @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Kiểm tra nếu không phải phương thức POST (Khuyến nghị bảo mật, tránh thu thập link)
 	if r.Method != http.MethodPost {

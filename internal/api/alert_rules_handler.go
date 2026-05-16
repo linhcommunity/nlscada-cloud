@@ -23,7 +23,13 @@ func NewAlertRuleHandler(store *postgres.Store, mqttClient *mqtt.Client) *AlertR
 	return &AlertRuleHandler{store: store, mqttClient: mqttClient}
 }
 
-// List trả về danh sách alert rules của site
+// @Summary Danh sách alert rules
+// @Tags Alert Rules
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.AlertRule} "Danh sách rule"
+// @Router /sites/{siteID}/alert-rules [get]
 func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -56,7 +62,27 @@ func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, rules)
 }
 
-// Create tạo alert rule mới
+type CreateAlertRuleRequest struct {
+	TagID           string   `json:"tag_id"`
+	Name            string   `json:"name"`
+	Description     *string  `json:"description,omitempty"`
+	MinValue        *float64 `json:"min_value,omitempty"`
+	MaxValue        *float64 `json:"max_value,omitempty"`
+	Severity        string   `json:"severity"`
+	MessageTemplate *string  `json:"message_template,omitempty"`
+	IsEnabled       *bool    `json:"is_enabled,omitempty"`
+}
+
+// @Summary Tạo alert rule
+// @Tags Alert Rules
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body CreateAlertRuleRequest true "Thông tin rule"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.AlertRule} "Rule đã tạo"
+// @Failure 400 {object} response.ErrorResponse "Dữ liệu không hợp lệ"
+// @Router /sites/{siteID}/alert-rules [post]
 func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -64,16 +90,7 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		TagID           string   `json:"tag_id"`
-		Name            string   `json:"name"`
-		Description     *string  `json:"description,omitempty"`
-		MinValue        *float64 `json:"min_value,omitempty"`
-		MaxValue        *float64 `json:"max_value,omitempty"`
-		Severity        string   `json:"severity"`
-		MessageTemplate *string  `json:"message_template,omitempty"`
-		IsEnabled       *bool    `json:"is_enabled,omitempty"`
-	}
+	var input CreateAlertRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
 		return
@@ -112,7 +129,15 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, rule)
 }
 
-// Get trả về chi tiết một alert rule
+// @Summary Chi tiết alert rule
+// @Tags Alert Rules
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param ruleID path string true "Rule UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.AlertRule}
+// @Failure 404 {object} response.ErrorResponse "Rule không tồn tại"
+// @Router /sites/{siteID}/alert-rules/{ruleID} [get]
 func (h *AlertRuleHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -141,7 +166,27 @@ func (h *AlertRuleHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, rule)
 }
 
-// Update cập nhật alert rule
+type UpdateAlertRuleRequest struct {
+	Name            *string  `json:"name,omitempty"`
+	Description     *string  `json:"description,omitempty"`
+	MinValue        *float64 `json:"min_value,omitempty"`
+	MaxValue        *float64 `json:"max_value,omitempty"`
+	Severity        *string  `json:"severity,omitempty"`
+	MessageTemplate *string  `json:"message_template,omitempty"`
+	IsEnabled       *bool    `json:"is_enabled,omitempty"`
+}
+
+// @Summary Cập nhật alert rule
+// @Tags Alert Rules
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param ruleID path string true "Rule UUID"
+// @Param request body UpdateAlertRuleRequest true "Các trường cần cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.AlertRule} "Rule đã cập nhật"
+// @Failure 400 {object} response.ErrorResponse "Không có gì để cập nhật"
+// @Router /sites/{siteID}/alert-rules/{ruleID} [put]
 func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -154,15 +199,7 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name            *string  `json:"name,omitempty"`
-		Description     *string  `json:"description,omitempty"`
-		MinValue        *float64 `json:"min_value,omitempty"`
-		MaxValue        *float64 `json:"max_value,omitempty"`
-		Severity        *string  `json:"severity,omitempty"`
-		MessageTemplate *string  `json:"message_template,omitempty"`
-		IsEnabled       *bool    `json:"is_enabled,omitempty"`
-	}
+	var input UpdateAlertRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
 		return
@@ -228,7 +265,13 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, rule)
 }
 
-// Delete xóa alert rule
+// @Summary Xóa alert rule
+// @Tags Alert Rules
+// @Param siteID path string true "Site UUID"
+// @Param ruleID path string true "Rule UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Rule đã xóa"
+// @Router /sites/{siteID}/alert-rules/{ruleID} [delete]
 func (h *AlertRuleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

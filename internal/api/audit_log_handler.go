@@ -22,7 +22,17 @@ func NewAuditLogHandler(store *postgres.Store) *AuditLogHandler {
 	return &AuditLogHandler{store: store}
 }
 
-// List trả về danh sách audit logs của site (có phân trang và filter)
+// @Summary Nhật ký hoạt động
+// @Tags Audit Logs
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param user_id query string false "Lọc theo user"
+// @Param action_type query string false "Lọc theo loại hành động"
+// @Param page query int false "Số trang"
+// @Param limit query int false "Số bản ghi/trang"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.AuditLog}
+// @Router /sites/{siteID}/logs/audit [get]
 func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -86,7 +96,14 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSONWithPagination(w, http.StatusOK, logs, page, limit, 0)
 }
 
-// Get trả về chi tiết một audit log
+// @Summary Chi tiết audit log
+// @Tags Audit Logs
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param logID path string true "Log UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.AuditLog}
+// @Router /sites/{siteID}/logs/audit/{logID} [get]
 func (h *AuditLogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

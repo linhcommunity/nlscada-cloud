@@ -81,7 +81,7 @@ type ControlConfig struct {
 	SiteID        uuid.UUID       `json:"site_id"        db:"site_id"`
 	TagID         uuid.UUID       `json:"tag_id"         db:"tag_id"`
 	ControlType   string          `json:"control_type"   db:"control_type"`   // ON_OFF, SET_VALUE, OPEN_CLOSE
-	AllowedValues json.RawMessage `json:"allowed_values" db:"allowed_values"` // JSONB
+	AllowedValues json.RawMessage `json:"allowed_values" db:"allowed_values" swaggertype:"object"` // JSONB
 	IsEnabled     bool            `json:"is_enabled"     db:"is_enabled"`
 	CreatedAt     time.Time       `json:"created_at"     db:"created_at"`
 	UpdatedAt     *time.Time      `json:"updated_at"     db:"updated_at"`
@@ -150,8 +150,8 @@ type AuditLog struct {
 	ResourceTarget string          `json:"resource_target" db:"resource_target"` // tên bảng
 	TargetID       *uuid.UUID      `json:"target_id"       db:"target_id"`
 	Description    string          `json:"description"     db:"description"`
-	OldValues      json.RawMessage `json:"old_values"      db:"old_values"` // JSONB
-	NewValues      json.RawMessage `json:"new_values"      db:"new_values"` // JSONB
+	OldValues      json.RawMessage `json:"old_values"      db:"old_values"      swaggertype:"object"` // JSONB
+	NewValues      json.RawMessage `json:"new_values"      db:"new_values"      swaggertype:"object"` // JSONB
 	IPAddress      string          `json:"ip_address"      db:"ip_address"`
 	CreatedAt      time.Time       `json:"created_at"      db:"created_at"`
 }

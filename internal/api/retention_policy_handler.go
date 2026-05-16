@@ -19,7 +19,20 @@ func NewRetentionPolicyHandler(store *postgres.Store) *RetentionPolicyHandler {
 	return &RetentionPolicyHandler{store: store}
 }
 
-// Get trả về cấu hình retention policy của site
+type UpdateRetentionRequest struct {
+	AuditLogsDays       *int `json:"audit_logs_days,omitempty"`
+	SystemEventLogsDays *int `json:"system_event_logs_days,omitempty"`
+	AlertLogsDays       *int `json:"alert_logs_days,omitempty"`
+	TelemetryInfluxDays *int `json:"telemetry_influx_days,omitempty"`
+}
+
+// @Summary Xem chính sách xóa dữ liệu
+// @Tags Retention
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.SiteRetentionPolicy} "Chính sách hiện tại"
+// @Router /sites/{siteID}/retention-policies [get]
 func (h *RetentionPolicyHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -48,7 +61,15 @@ func (h *RetentionPolicyHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, policy)
 }
 
-// Update cập nhật cấu hình retention policy
+// @Summary Cập nhật chính sách xóa dữ liệu
+// @Tags Retention
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body UpdateRetentionRequest true "Số ngày lưu trữ"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.SiteRetentionPolicy} "Chính sách hiện tại"
+// @Router /sites/{siteID}/retention-policies [put]
 func (h *RetentionPolicyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -56,12 +77,7 @@ func (h *RetentionPolicyHandler) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var input struct {
-		AuditLogsDays       *int `json:"audit_logs_days,omitempty"`
-		SystemEventLogsDays *int `json:"system_event_logs_days,omitempty"`
-		AlertLogsDays       *int `json:"alert_logs_days,omitempty"`
-		TelemetryInfluxDays *int `json:"telemetry_influx_days,omitempty"`
-	}
+	var input UpdateRetentionRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu đầu vào không hợp lệ")
 		return
@@ -116,7 +132,12 @@ func (h *RetentionPolicyHandler) Update(w http.ResponseWriter, r *http.Request) 
 	response.JSON(w, http.StatusOK, policy)
 }
 
-// TriggerManual kích hoạt dọn dẹp dữ liệu cũ ngay lập tức
+// @Summary Kích hoạt dọn dẹp ngay
+// @Tags Retention
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 202 {object} response.SuccessResponse "Đã kích hoạt dọn dẹp"
+// @Router /sites/{siteID}/retention-policies/trigger-manual [post]
 func (h *RetentionPolicyHandler) TriggerManual(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

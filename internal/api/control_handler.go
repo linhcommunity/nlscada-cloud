@@ -18,17 +18,30 @@ type ControlHandler struct {
 	store *postgres.Store
 }
 
-type controlRequest struct {
+// ControlRequest là body gửi lệnh điều khiển
+type ControlRequest struct {
 	TagName string `json:"tag_name"`
 	Value   string `json:"value"`
 }
+
+type controlRequest = ControlRequest
 
 // NewControlHandler tạo instance mới
 func NewControlHandler(store *postgres.Store) *ControlHandler {
 	return &ControlHandler{store: store}
 }
 
-// Send gửi lệnh điều khiển đến thiết bị
+// @Summary Gửi lệnh điều khiển
+// @Tags Control
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Param request body ControlRequest true "Lệnh điều khiển"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.ControlLog} "Lệnh đã gửi"
+// @Failure 403 {object} response.ErrorResponse "Không có quyền"
+// @Router /sites/{siteID}/devices/{deviceID}/control [post]
 func (h *ControlHandler) Send(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -101,7 +114,16 @@ func (h *ControlHandler) Send(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, logEntry)
 }
 
-// Logs trả về lịch sử lệnh điều khiển của thiết bị
+// @Summary Lịch sử lệnh điều khiển
+// @Tags Control
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param deviceID path string true "Device UUID"
+// @Param page query int false "Số trang"
+// @Param limit query int false "Số bản ghi/trang"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.ControlLog} "Danh sách lệnh"
+// @Router /sites/{siteID}/devices/{deviceID}/control/logs [get]
 func (h *ControlHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

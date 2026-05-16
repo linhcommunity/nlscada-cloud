@@ -23,7 +23,36 @@ func NewPidDiagramHandler(store *postgres.Store) *PidDiagramHandler {
 	return &PidDiagramHandler{store: store}
 }
 
-// Create tạo sơ đồ P&ID mới
+type CreateDiagramRequest struct {
+	Name          string `json:"name"`
+	BackgroundURL string `json:"background_url"`
+}
+
+type AddWidgetRequest struct {
+	DeviceID   string  `json:"device_id"`
+	TagName    string  `json:"tag_name"`
+	PositionX  float64 `json:"position_x"`
+	PositionY  float64 `json:"position_y"`
+	WidgetType string  `json:"widget_type"`
+}
+
+type UpdateWidgetRequest struct {
+	DeviceID   *string  `json:"device_id,omitempty"`
+	TagName    *string  `json:"tag_name,omitempty"`
+	PositionX  *float64 `json:"position_x,omitempty"`
+	PositionY  *float64 `json:"position_y,omitempty"`
+	WidgetType *string  `json:"widget_type,omitempty"`
+}
+
+// @Summary Tạo sơ đồ P&ID
+// @Tags P&ID
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body CreateDiagramRequest true "Thông tin sơ đồ"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.PidDiagram}
+// @Router /sites/{siteID}/pid-diagrams [post]
 func (h *PidDiagramHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -31,10 +60,7 @@ func (h *PidDiagramHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Name          string `json:"name"`
-		BackgroundURL string `json:"background_url"`
-	}
+	var input CreateDiagramRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
@@ -59,7 +85,13 @@ func (h *PidDiagramHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, diagram)
 }
 
-// List trả về danh sách sơ đồ P&ID của site
+// @Summary Danh sách sơ đồ P&ID
+// @Tags P&ID
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.PidDiagram}
+// @Router /sites/{siteID}/pid-diagrams [get]
 func (h *PidDiagramHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -89,7 +121,14 @@ func (h *PidDiagramHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, diagrams)
 }
 
-// Get trả về chi tiết một sơ đồ P&ID
+// @Summary Chi tiết sơ đồ P&ID
+// @Tags P&ID
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param diagramID path string true "Diagram UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.PidDiagram}
+// @Router /sites/{siteID}/pid-diagrams/{diagramID} [get]
 func (h *PidDiagramHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -116,7 +155,13 @@ func (h *PidDiagramHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, d)
 }
 
-// Delete xóa sơ đồ P&ID
+// @Summary Xóa sơ đồ P&ID
+// @Tags P&ID
+// @Param siteID path string true "Site UUID"
+// @Param diagramID path string true "Diagram UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse
+// @Router /sites/{siteID}/pid-diagrams/{diagramID} [delete]
 func (h *PidDiagramHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -140,9 +185,16 @@ func (h *PidDiagramHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, nil)
 }
 
-// --- Widgets ---
-
-// AddWidget thêm widget vào sơ đồ
+// @Summary Thêm widget vào sơ đồ
+// @Tags P&ID
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param diagramID path string true "Diagram UUID"
+// @Param request body AddWidgetRequest true "Thông tin widget"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.PidWidget}
+// @Router /sites/{siteID}/pid-diagrams/{diagramID}/widgets [post]
 func (h *PidDiagramHandler) AddWidget(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -156,13 +208,7 @@ func (h *PidDiagramHandler) AddWidget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		DeviceID   string  `json:"device_id"`
-		TagName    string  `json:"tag_name"`
-		PositionX  float64 `json:"position_x"`
-		PositionY  float64 `json:"position_y"`
-		WidgetType string  `json:"widget_type"` // TEXT, PUMP, VALVE
-	}
+	var input AddWidgetRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
@@ -193,7 +239,17 @@ func (h *PidDiagramHandler) AddWidget(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, widget)
 }
 
-// UpdateWidget cập nhật widget
+// @Summary Cập nhật widget
+// @Tags P&ID
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param diagramID path string true "Diagram UUID"
+// @Param widgetID path string true "Widget UUID"
+// @Param request body UpdateWidgetRequest true "Các trường cần cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.PidWidget}
+// @Router /sites/{siteID}/pid-diagrams/{diagramID}/widgets/{widgetID} [put]
 func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -207,13 +263,7 @@ func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var input struct {
-		DeviceID   *string  `json:"device_id,omitempty"`
-		TagName    *string  `json:"tag_name,omitempty"`
-		PositionX  *float64 `json:"position_x,omitempty"`
-		PositionY  *float64 `json:"position_y,omitempty"`
-		WidgetType *string  `json:"widget_type,omitempty"`
-	}
+	var input UpdateWidgetRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
@@ -268,7 +318,14 @@ func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request)
 	response.JSON(w, http.StatusOK, widget)
 }
 
-// DeleteWidget xóa widget
+// @Summary Xóa widget
+// @Tags P&ID
+// @Param siteID path string true "Site UUID"
+// @Param diagramID path string true "Diagram UUID"
+// @Param widgetID path string true "Widget UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse
+// @Router /sites/{siteID}/pid-diagrams/{diagramID}/widgets/{widgetID} [delete]
 func (h *PidDiagramHandler) DeleteWidget(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {

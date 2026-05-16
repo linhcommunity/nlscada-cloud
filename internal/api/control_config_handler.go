@@ -23,7 +23,26 @@ func NewControlConfigHandler(store *postgres.Store, mqttClient *mqtt.Client) *Co
 	return &ControlConfigHandler{store: store, mqttClient: mqttClient}
 }
 
-// List trả về danh sách control config của site
+type CreateControlConfigRequest struct {
+	TagID         string           `json:"tag_id"`
+	ControlType   string           `json:"control_type"`
+	AllowedValues *json.RawMessage `json:"allowed_values,omitempty" swaggertype:"object"`
+	IsEnabled     *bool            `json:"is_enabled,omitempty"`
+}
+
+type UpdateControlConfigRequest struct {
+	ControlType   *string          `json:"control_type,omitempty"`
+	AllowedValues *json.RawMessage `json:"allowed_values,omitempty" swaggertype:"object"`
+	IsEnabled     *bool            `json:"is_enabled,omitempty"`
+}
+
+// @Summary Danh sách control config
+// @Tags Control Config
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=[]models.ControlConfig} "Danh sách config"
+// @Router /sites/{siteID}/control-configs [get]
 func (h *ControlConfigHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -54,7 +73,15 @@ func (h *ControlConfigHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, configs)
 }
 
-// Create tạo control config mới
+// @Summary Tạo control config
+// @Tags Control Config
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param request body CreateControlConfigRequest true "Thông tin config"
+// @Security BearerAuth
+// @Success 201 {object} response.SuccessResponse{data=models.ControlConfig}
+// @Router /sites/{siteID}/control-configs [post]
 func (h *ControlConfigHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -62,12 +89,7 @@ func (h *ControlConfigHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		TagID         string           `json:"tag_id"`
-		ControlType   string           `json:"control_type"`
-		AllowedValues *json.RawMessage `json:"allowed_values,omitempty"`
-		IsEnabled     *bool            `json:"is_enabled,omitempty"`
-	}
+	var input CreateControlConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
 		return
@@ -100,7 +122,14 @@ func (h *ControlConfigHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, cfg)
 }
 
-// Get trả về chi tiết một control config
+// @Summary Chi tiết control config
+// @Tags Control Config
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param configID path string true "Config UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.ControlConfig}
+// @Router /sites/{siteID}/control-configs/{configID} [get]
 func (h *ControlConfigHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -127,7 +156,16 @@ func (h *ControlConfigHandler) Get(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, cfg)
 }
 
-// Update cập nhật control config
+// @Summary Cập nhật control config
+// @Tags Control Config
+// @Accept json
+// @Produce json
+// @Param siteID path string true "Site UUID"
+// @Param configID path string true "Config UUID"
+// @Param request body UpdateControlConfigRequest true "Các trường cần cập nhật"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse{data=models.ControlConfig}
+// @Router /sites/{siteID}/control-configs/{configID} [put]
 func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
@@ -140,11 +178,7 @@ func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		ControlType   *string          `json:"control_type,omitempty"`
-		AllowedValues *json.RawMessage `json:"allowed_values,omitempty"`
-		IsEnabled     *bool            `json:"is_enabled,omitempty"`
-	}
+	var input UpdateControlConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, http.StatusBadRequest, "BADREQUEST", "Data vào yêu cầu không hợp lệ")
 		return
@@ -188,7 +222,13 @@ func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, cfg)
 }
 
-// Delete xóa control config
+// @Summary Xóa control config
+// @Tags Control Config
+// @Param siteID path string true "Site UUID"
+// @Param configID path string true "Config UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse
+// @Router /sites/{siteID}/control-configs/{configID} [delete]
 func (h *ControlConfigHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
