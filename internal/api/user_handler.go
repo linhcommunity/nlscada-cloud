@@ -1,11 +1,11 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"nlscada-cloud/internal/db/postgres"
+	"nlscada-cloud/internal/response"
 
 	"github.com/google/uuid"
 )
