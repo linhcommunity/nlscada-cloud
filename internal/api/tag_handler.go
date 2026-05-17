@@ -44,12 +44,12 @@ type UpdateTagRequest struct {
 func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	deviceID, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid device id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -57,19 +57,19 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 	var siteID uuid.UUID
 	err = h.store.Pool.QueryRow(r.Context(), "SELECT site_id FROM devices WHERE id = $1", deviceID).Scan(&siteID)
 	if err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
 		return
 	}
 
 	if siteID != membership.SiteID {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Thiết bị không thuộc site của bạn")
 		return
 	}
 
 	rows, err := h.store.Pool.Query(r.Context(),
 		"SELECT id, device_id, name, data_type, unit, description, created_at FROM tags WHERE device_id=$1", deviceID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -78,14 +78,13 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var t models.Tag
 		if err := rows.Scan(&t.ID, &t.DeviceID, &t.Name, &t.DataType, &t.Unit, &t.Description, &t.CreatedAt); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa tag thất bại")
 			return
 		}
 		tags = append(tags, t)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tags)
+	response.ListJSON(w, http.StatusOK, tags, 1, len(tags), int64(len(tags)))
 }
 
 // @Summary Tạo tag mới
@@ -101,12 +100,12 @@ func (h *TagHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	deviceID, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid device id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -114,18 +113,18 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var siteID uuid.UUID
 	err = h.store.Pool.QueryRow(r.Context(), "SELECT site_id FROM devices WHERE id = $1", deviceID).Scan(&siteID)
 	if err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
 		return
 	}
 
 	if siteID != membership.SiteID {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Thiết bị không thuộc site của bạn")
 		return
 	}
 
 	var input CreateTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -137,13 +136,11 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 		deviceID, input.Name, input.DataType, input.Unit, input.Description).
 		Scan(&t.ID, &t.DeviceID, &t.Name, &t.DataType, &t.Unit, &t.Description, &t.CreatedAt)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(t)
+	response.JSON(w, http.StatusCreated, t)
 }
 
 // @Summary Cập nhật tag
@@ -159,12 +156,12 @@ func (h *TagHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "tagID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid tag id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_TAG_ID", "ID tag không hợp lệ")
 		return
 	}
 
@@ -174,18 +171,18 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 		"SELECT t.device_id, d.site_id FROM tags t JOIN devices d ON t.device_id = d.id WHERE t.id = $1", id).
 		Scan(&deviceID, &siteID)
 	if err != nil {
-		http.Error(w, `{"error":"tag not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "TAG_NOT_FOUND", "Tag không tồn tại")
 		return
 	}
 
 	if siteID != membership.SiteID {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Tag không thuộc site của bạn")
 		return
 	}
 
 	var input UpdateTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -201,12 +198,11 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.DataType, input.Unit, input.Description, id).
 		Scan(&t.ID, &t.DeviceID, &t.Name, &t.DataType, &t.Unit, &t.Description, &t.CreatedAt)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo tag thất bại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(t)
+	response.JSON(w, http.StatusOK, t)
 }
 
 // @Summary Xóa tag
@@ -219,12 +215,12 @@ func (h *TagHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "tagID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid tag id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_TAG_ID", "ID tag không hợp lệ")
 		return
 	}
 
@@ -234,19 +230,19 @@ func (h *TagHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		"SELECT d.site_id FROM tags t JOIN devices d ON t.device_id = d.id WHERE t.id = $1", id).
 		Scan(&siteID)
 	if err != nil {
-		http.Error(w, `{"error":"tag not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "TAG_NOT_FOUND", "Tag không tồn tại")
 		return
 	}
 	if siteID != membership.SiteID {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Tag không thuộc site của bạn")
 		return
 	}
 
 	_, err = h.store.Pool.Exec(r.Context(), "DELETE FROM tags WHERE id=$1", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật tag thất bại")
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	response.JSON(w, http.StatusOK, nil)
 }

@@ -40,7 +40,7 @@ type UpdateDeviceRequest struct {
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at 
 		 FROM devices WHERE site_id = $1`, membership.SiteID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -57,14 +57,13 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d models.Device
 		if err := rows.Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo thiết bị thất bại")
 			return
 		}
 		devices = append(devices, d)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(devices)
+	response.ListJSON(w, http.StatusOK, devices, 1, len(devices), int64(len(devices)))
 }
 
 // @Summary Chi tiết thiết bị
@@ -79,13 +78,13 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
 	id, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 	siteID := membership.SiteID
@@ -96,12 +95,11 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		 FROM devices WHERE id = $1 AND site_id = $2`, id, siteID).
 		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
+	response.JSON(w, http.StatusOK, d)
 }
 
 // @Summary Tạo thiết bị
@@ -116,12 +114,12 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	var input CreateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	siteID := membership.SiteID
@@ -134,13 +132,11 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		siteID, input.Name, input.DeviceType, input.MqttClientID).
 		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(d)
+	response.JSON(w, http.StatusCreated, d)
 }
 
 // @Summary Cập nhật thiết bị
@@ -157,12 +153,12 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -170,7 +166,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var input UpdateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -182,12 +178,11 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.DeviceType, id, siteID).
 		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"not found or update failed"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật thiết bị thất bại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
+	response.JSON(w, http.StatusOK, d)
 }
 
 // @Summary Xóa thiết bị
@@ -201,12 +196,12 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -215,9 +210,9 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_, err = h.store.Pool.Exec(r.Context(),
 		"DELETE FROM devices WHERE id=$1 AND site_id=$2", id, siteID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	response.JSON(w, http.StatusOK, nil)
 }

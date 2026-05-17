@@ -62,11 +62,11 @@ func (h *PidDiagramHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var input CreateDiagramRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	if input.Name == "" || input.BackgroundURL == "" {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_INPUT", "Tên và URL nền là bắt buộc")
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *PidDiagramHandler) Create(w http.ResponseWriter, r *http.Request) {
 		membership.SiteID, input.Name, input.BackgroundURL,
 	).Scan(&diagram.ID, &diagram.SiteID, &diagram.Name, &diagram.BackgroundURL, &diagram.CreatedAt, &diagram.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo sơ đồ thất bại")
 		return
 	}
 
@@ -103,7 +103,7 @@ func (h *PidDiagramHandler) List(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, site_id, name, background_url, created_at, updated_at 
 		 FROM pid_diagrams WHERE site_id = $1 ORDER BY created_at DESC`, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -112,13 +112,13 @@ func (h *PidDiagramHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d models.PidDiagram
 		if err := rows.Scan(&d.ID, &d.SiteID, &d.Name, &d.BackgroundURL, &d.CreatedAt, &d.UpdatedAt); err != nil {
-			response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+			response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa widget thất bại")
 			return
 		}
 		diagrams = append(diagrams, d)
 	}
 
-	response.JSON(w, http.StatusOK, diagrams)
+	response.ListJSON(w, http.StatusOK, diagrams, 1, len(diagrams), int64(len(diagrams)))
 }
 
 // @Summary Chi tiết sơ đồ P&ID
@@ -138,7 +138,7 @@ func (h *PidDiagramHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	diagramID, err := uuid.Parse(chi.URLParam(r, "diagramID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_DIAGRAM_ID", "ID sơ đồ không hợp lệ")
 		return
 	}
 
@@ -148,7 +148,7 @@ func (h *PidDiagramHandler) Get(w http.ResponseWriter, r *http.Request) {
 		 FROM pid_diagrams WHERE id = $1 AND site_id = $2`, diagramID, membership.SiteID,
 	).Scan(&d.ID, &d.SiteID, &d.Name, &d.BackgroundURL, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusNotFound, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusNotFound, "DIAGRAM_NOT_FOUND", "Sơ đồ không tồn tại")
 		return
 	}
 
@@ -171,14 +171,14 @@ func (h *PidDiagramHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	diagramID, err := uuid.Parse(chi.URLParam(r, "diagramID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_DIAGRAM_ID", "ID sơ đồ không hợp lệ")
 		return
 	}
 
 	_, err = h.store.Pool.Exec(r.Context(),
 		"DELETE FROM pid_diagrams WHERE id = $1 AND site_id = $2", diagramID, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 		return
 	}
 
@@ -204,23 +204,25 @@ func (h *PidDiagramHandler) AddWidget(w http.ResponseWriter, r *http.Request) {
 
 	diagramID, err := uuid.Parse(chi.URLParam(r, "diagramID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_DIAGRAM_ID", "ID sơ đồ không hợp lệ")
 		return
 	}
 
 	var input AddWidgetRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	if input.WidgetType != "TEXT" && input.WidgetType != "PUMP" && input.WidgetType != "VALVE" {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.ValidationError(w, []response.ValidationErrorDetail{
+			{Field: "widget_type", Issue: "Loại widget phải là TEXT, PUMP hoặc VALVE"},
+		})
 		return
 	}
 
 	deviceID, err := uuid.Parse(input.DeviceID)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -232,7 +234,7 @@ func (h *PidDiagramHandler) AddWidget(w http.ResponseWriter, r *http.Request) {
 		diagramID, deviceID, input.TagName, input.PositionX, input.PositionY, input.WidgetType,
 	).Scan(&widget.ID, &widget.DiagramID, &widget.DeviceID, &widget.TagName, &widget.PositionX, &widget.PositionY, &widget.WidgetType)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa sơ đồ thất bại")
 		return
 	}
 
@@ -259,13 +261,13 @@ func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request)
 
 	widgetID, err := uuid.Parse(chi.URLParam(r, "widgetID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_WIDGET_ID", "ID widget không hợp lệ")
 		return
 	}
 
 	var input UpdateWidgetRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -300,7 +302,7 @@ func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request)
 		argIdx++
 	}
 	if len(args) == 0 {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "NO_FIELDS_TO_UPDATE", "Không có trường nào để cập nhật")
 		return
 	}
 	query = query[:len(query)-2]
@@ -311,7 +313,7 @@ func (h *PidDiagramHandler) UpdateWidget(w http.ResponseWriter, r *http.Request)
 	err = h.store.Pool.QueryRow(r.Context(), query, args...).Scan(
 		&widget.ID, &widget.DiagramID, &widget.DeviceID, &widget.TagName, &widget.PositionX, &widget.PositionY, &widget.WidgetType)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Thêm widget thất bại")
 		return
 	}
 
@@ -335,13 +337,13 @@ func (h *PidDiagramHandler) DeleteWidget(w http.ResponseWriter, r *http.Request)
 
 	widgetID, err := uuid.Parse(chi.URLParam(r, "widgetID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusBadRequest, "INVALID_WIDGET_ID", "ID widget không hợp lệ")
 		return
 	}
 
 	_, err = h.store.Pool.Exec(r.Context(), "DELETE FROM pid_widgets WHERE id = $1", widgetID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật widget thất bại")
 		return
 	}
 

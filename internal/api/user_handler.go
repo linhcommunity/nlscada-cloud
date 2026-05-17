@@ -36,7 +36,7 @@ type UserInfo struct {
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
 	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
@@ -57,12 +57,11 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 			&user.CreatedAt)
 
 	if err != nil {
-		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "USER_NOT_FOUND", "Người dùng không tồn tại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	response.JSON(w, http.StatusOK, user)
 }
 
 // ListVerified trả về danh sách user đã xác thực email (dùng để mời vào site)
@@ -78,7 +77,7 @@ func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.store.Pool.Query(r.Context(),
 		"SELECT id, email, name, created_at FROM users WHERE email_verified = true")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa thành viên thất bại")
 		return
 	}
 	defer rows.Close()
@@ -91,11 +90,10 @@ func (h *UserHandler) ListVerified(w http.ResponseWriter, r *http.Request) {
 			&u.Name,
 			// &u.EmailVerified,
 			&u.CreatedAt); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 			return
 		}
 		users = append(users, u)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	response.ListJSON(w, http.StatusOK, users, 1, len(users), int64(len(users)))
 }

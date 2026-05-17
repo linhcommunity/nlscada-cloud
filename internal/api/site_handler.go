@@ -45,24 +45,24 @@ type UpdateSiteRequest struct {
 func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r) // chứa userID
 	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
 	var input CreateSiteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	if input.Name == "" { // loại trừ tên rỗng
-		http.Error(w, `{"error":"name required"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "NAME_REQUIRED", "Tên site là bắt buộc")
 		return
 	}
 
 	ctx := r.Context()
 	tx, err := h.store.Pool.Begin(ctx) // bắt đầu transaction
 	if err != nil {
-		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Lỗi nội bộ")
 		return
 	}
 	defer tx.Rollback(ctx)
@@ -72,9 +72,9 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	err = tx.QueryRow(ctx, "INSERT INTO sites (name, description) VALUES ($1, $2) RETURNING id", input.Name, input.Description).Scan(&siteID)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
-			http.Error(w, `{"error":"site name already exists"}`, http.StatusConflict)
+			response.Error(w, http.StatusConflict, "SITE_NAME_EXISTS", "Tên site đã tồn tại")
 		} else {
-			http.Error(w, `{"error":"failed to create site"}`, http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo site thất bại")
 		}
 		return
 	}
@@ -83,13 +83,13 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 2. Tạo membership (admin) cho user
 	_, err = tx.Exec(ctx, "INSERT INTO memberships (user_id, site_id, role) VALUES ($1, $2, 'admin')", claims.UserID, siteID)
 	if err != nil {
-		http.Error(w, `{"error":"failed to create membership"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo thành viên thất bại")
 		return
 	}
 	fmt.Printf("Created membership for user %s as admin of site %s\n", claims.UserID, siteID)
 
 	if err := tx.Commit(ctx); err != nil {
-		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Lỗi nội bộ")
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var s models.Site
 	err = h.store.Pool.QueryRow(ctx, "SELECT id, name, created_at FROM sites WHERE id = $1", siteID).Scan(&s.ID, &s.Name, &s.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Lỗi nội bộ")
 		return
 	}
 
@@ -111,9 +111,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Site created successfully: %+v\n", resp)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	response.JSON(w, http.StatusCreated, resp)
 }
 
 // @Summary Danh sách site của user
@@ -127,7 +125,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
 	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
@@ -137,7 +135,7 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 		 INNER JOIN memberships m ON s.id = m.site_id 
 		 WHERE m.user_id = $1`, claims.UserID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -153,14 +151,13 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var s SiteInfo
 		if err := rows.Scan(&s.ID, &s.Name, &s.CreatedAt, &s.Role); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa site thất bại")
 			return
 		}
 		sites = append(sites, s)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sites)
+	response.ListJSON(w, http.StatusOK, sites, 1, len(sites), int64(len(sites)))
 }
 
 // @Summary Cập nhật site
@@ -176,21 +173,21 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	if membership.Role != "admin" {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Bạn không có quyền admin")
 		return
 	}
 
 	var input UpdateSiteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	if input.Name == "" {
-		http.Error(w, `{"error":"name required"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "NAME_REQUIRED", "Tên site là bắt buộc")
 		return
 	}
 
@@ -200,11 +197,10 @@ func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.Description, membership.SiteID,
 	).Scan(&s.ID, &s.Name, &s.Description, &s.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật site thất bại")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s)
+	response.JSON(w, http.StatusOK, s)
 }
 
 // @Summary Xóa site
@@ -217,22 +213,22 @@ func (h *SiteHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	if membership.Role != "admin" {
-		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Bạn không có quyền admin")
 		return
 	}
 
 	_, err := h.store.Pool.Exec(r.Context(),
 		"DELETE FROM sites WHERE id=$1", membership.SiteID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	response.JSON(w, http.StatusOK, nil)
 }
 
 // @Summary Chi tiết site
@@ -248,7 +244,7 @@ func (h *SiteHandler) Get(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
 	membership := GetMembership(r)
 	if claims == nil || membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	fmt.Printf("User %s requested site details for site %s\n", claims.UserID, membership.SiteID)
@@ -259,7 +255,7 @@ func (h *SiteHandler) Get(w http.ResponseWriter, r *http.Request) {
 		`SELECT role FROM memberships WHERE user_id=$1 AND site_id=$2`,
 		claims.UserID, membership.SiteID).Scan(&role)
 	if err != nil {
-		http.Error(w, `{"error":"access denied"}`, http.StatusForbidden)
+		response.Error(w, http.StatusForbidden, "FORBIDDEN", "Bạn không có quyền truy cập site này")
 		return
 	}
 
@@ -267,9 +263,8 @@ func (h *SiteHandler) Get(w http.ResponseWriter, r *http.Request) {
 	err = h.store.Pool.QueryRow(r.Context(),
 		`SELECT id, name, created_at FROM sites WHERE id=$1`, membership.SiteID).Scan(&site.ID, &site.Name, &site.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "SITE_NOT_FOUND", "Site không tồn tại")
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(site)
+	response.JSON(w, http.StatusOK, site)
 }

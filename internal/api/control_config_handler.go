@@ -54,7 +54,7 @@ func (h *ControlConfigHandler) List(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, site_id, tag_id, control_type, allowed_values, is_enabled, created_at, updated_at
 		 FROM control_config WHERE site_id = $1 ORDER BY created_at DESC`, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -64,13 +64,13 @@ func (h *ControlConfigHandler) List(w http.ResponseWriter, r *http.Request) {
 		var c models.ControlConfig
 		if err := rows.Scan(&c.ID, &c.SiteID, &c.TagID, &c.ControlType,
 			&c.AllowedValues, &c.IsEnabled, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			response.Error(w, http.StatusInternalServerError, "LỖI NỘI BỘ", "Lỗi quyét dữ liệu")
+			response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Lỗi quét dữ liệu")
 			return
 		}
 		configs = append(configs, c)
 	}
 
-	response.JSON(w, http.StatusOK, configs)
+	response.ListJSON(w, http.StatusOK, configs, 1, len(configs), int64(len(configs)))
 }
 
 // @Summary Tạo control config
@@ -91,12 +91,14 @@ func (h *ControlConfigHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var input CreateControlConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	tagID, err := uuid.Parse(input.TagID)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Tag ID không hợp lệ")
+		response.ValidationError(w, []response.ValidationErrorDetail{
+			{Field: "tag_id", Issue: "ID thẻ không hợp lệ"},
+		})
 		return
 	}
 
@@ -114,7 +116,7 @@ func (h *ControlConfigHandler) Create(w http.ResponseWriter, r *http.Request) {
 	).Scan(&cfg.ID, &cfg.SiteID, &cfg.TagID, &cfg.ControlType,
 		&cfg.AllowedValues, &cfg.IsEnabled, &cfg.CreatedAt, &cfg.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "LỖI NỘI BỘ", "Failed to create control config")
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo cấu hình điều khiển thất bại")
 		return
 	}
 
@@ -138,7 +140,7 @@ func (h *ControlConfigHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	configID, err := uuid.Parse(chi.URLParam(r, "configID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "BADREQUEST", "Config ID không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_CONFIG_ID", "ID cấu hình không hợp lệ")
 		return
 	}
 
@@ -174,13 +176,13 @@ func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	configID, err := uuid.Parse(chi.URLParam(r, "configID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "BADREQUEST", "Config ID không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_CONFIG_ID", "ID cấu hình không hợp lệ")
 		return
 	}
 
 	var input UpdateControlConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "BADREQUEST", "Data vào yêu cầu không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -203,7 +205,7 @@ func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 		argIdx++
 	}
 	if len(args) == 0 {
-		response.Error(w, http.StatusBadRequest, "BADREQUEST", "Không có dữ liệu để cập nhật")
+		response.Error(w, http.StatusBadRequest, "NO_FIELDS_TO_UPDATE", "Không có trường nào để cập nhật")
 		return
 	}
 	query = query[:len(query)-2] + `, updated_at = NOW() WHERE id = $` + strconv.Itoa(argIdx) + ` AND site_id = $` + strconv.Itoa(argIdx+1) + ` RETURNING id, site_id, tag_id, control_type, allowed_values, is_enabled, created_at, updated_at`
@@ -214,7 +216,7 @@ func (h *ControlConfigHandler) Update(w http.ResponseWriter, r *http.Request) {
 		&cfg.ID, &cfg.SiteID, &cfg.TagID, &cfg.ControlType,
 		&cfg.AllowedValues, &cfg.IsEnabled, &cfg.CreatedAt, &cfg.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "LỖI NỘI BỘ", "Failed to update control config")
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật cấu hình điều khiển thất bại")
 		return
 	}
 
@@ -243,7 +245,7 @@ func (h *ControlConfigHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.store.Pool.Exec(r.Context(), "DELETE FROM control_config WHERE id = $1 AND site_id = $2", configID, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "LỖI NỘI BỘ", "Failed to delete control config")
+		response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa cấu hình điều khiển thất bại")
 		return
 	}
 

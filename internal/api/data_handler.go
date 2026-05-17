@@ -45,13 +45,13 @@ func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
 	// 1. Kiểm tra membership
 	membership := GetMembership(r)
 	if membership == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 	// 2. Lấy deviceID từ URL
 	deviceID := chi.URLParam(r, "deviceID")
 	if deviceID == "" {
-		http.Error(w, `{"error":"deviceID required"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
 		"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)",
 		deviceID, membership.SiteID).Scan(&exists)
 	if err != nil || !exists {
-		http.Error(w, `{"error":"device not found or access denied"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại hoặc không có quyền truy cập")
 		return
 	}
 	tagsParam := r.URL.Query().Get("tags")
@@ -97,7 +97,7 @@ func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("InfluxDB Query:\n", query)
 	result, err := h.influxReader.Query(query)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 
@@ -111,6 +111,5 @@ func (h *DataHandler) Query(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	response.JSON(w, http.StatusOK, data)
 }

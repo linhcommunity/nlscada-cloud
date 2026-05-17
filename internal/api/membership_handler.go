@@ -39,13 +39,13 @@ type UpdateRoleRequest struct {
 func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid site id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_SITE_ID", "ID site không hợp lệ")
 		return
 	}
 
 	claims := GetClaims(r)
 	if claims == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 		 FROM memberships m JOIN users u ON m.user_id = u.id 
 		 WHERE m.site_id = $1`, siteID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa thiết bị thất bại")
 		return
 	}
 	defer rows.Close()
@@ -69,14 +69,13 @@ func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m MemberWithEmail
 		if err := rows.Scan(&m.ID, &m.UserID, &m.SiteID, &m.Role, &m.CreatedAt, &m.Email); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 			return
 		}
 		members = append(members, m)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(members)
+	response.ListJSON(w, http.StatusOK, members, 1, len(members), int64(len(members)))
 }
 
 // @Summary Mời thành viên
@@ -92,13 +91,13 @@ func (h *MembershipHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid site id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_SITE_ID", "ID site không hợp lệ")
 		return
 	}
 
 	var input InviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -110,7 +109,7 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	var userID uuid.UUID
 	err = h.store.Pool.QueryRow(r.Context(), "SELECT id FROM users WHERE email = $1", input.Email).Scan(&userID)
 	if err != nil {
-		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "USER_NOT_FOUND", "Người dùng không tồn tại")
 		return
 	}
 
@@ -121,16 +120,14 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		userID, siteID, input.Role).Scan(&m.ID, &m.UserID, &m.SiteID, &m.Role, &m.CreatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
-			http.Error(w, `{"error":"user already in site"}`, http.StatusConflict)
+			response.Error(w, http.StatusConflict, "USER_ALREADY_IN_SITE", "Người dùng đã là thành viên của site này")
 		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo thành viên thất bại")
 		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(m)
+	response.JSON(w, http.StatusCreated, m)
 }
 
 // @Summary Đổi role thành viên
@@ -146,18 +143,18 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid site id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_SITE_ID", "ID site không hợp lệ")
 		return
 	}
 	userID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid user id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_USER_ID", "ID người dùng không hợp lệ")
 		return
 	}
 
 	var input UpdateRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -166,12 +163,11 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		"UPDATE memberships SET role = $1 WHERE user_id = $2 AND site_id = $3 RETURNING id, user_id, site_id, role, created_at",
 		input.Role, userID, siteID).Scan(&m.ID, &m.UserID, &m.SiteID, &m.Role, &m.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"membership not found"}`, http.StatusNotFound)
+		response.Error(w, http.StatusNotFound, "MEMBERSHIP_NOT_FOUND", "Thành viên không tồn tại")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(m)
+	response.JSON(w, http.StatusOK, m)
 }
 
 // @Summary Xóa thành viên
@@ -184,20 +180,20 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 func (h *MembershipHandler) Remove(w http.ResponseWriter, r *http.Request) {
 	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid site id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_SITE_ID", "ID site không hợp lệ")
 		return
 	}
 	userID, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		http.Error(w, `{"error":"invalid user id"}`, http.StatusBadRequest)
+		response.Error(w, http.StatusBadRequest, "INVALID_USER_ID", "ID người dùng không hợp lệ")
 		return
 	}
 
 	_, err = h.store.Pool.Exec(r.Context(), "DELETE FROM memberships WHERE user_id = $1 AND site_id = $2", userID, siteID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	response.JSON(w, http.StatusOK, nil)
 }
