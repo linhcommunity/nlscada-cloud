@@ -33,6 +33,7 @@ type registerRequest struct {
 
 type registerResponse struct {
 	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
 	// Token    string    `json:"token"`
 	Message string `json:"message"`
 }
@@ -82,14 +83,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusCreated, registerResponse{Email: req.Email, Message: "Đăng ký thành công. Vui lòng đăng nhập để nhận token truy cập."})
+	response.JSON(w, http.StatusCreated, registerResponse{Email: req.Email, Name: req.Name, Message: "Đăng ký thành công. Vui lòng đăng nhập để nhận token truy cập."})
 }
 
 // --- Login ---
 
 type loginRequest struct {
 	Email    string `json:"email"`
-	Name     string `json:"name,omitempty"` // không bắt buộc, chỉ để phản hồi lại cho client
 	Password string `json:"password"`
 }
 
@@ -138,14 +138,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Tài khoản hoặc mật khẩu không chính xác!")
 		return
 	}
+	var name string
+	err = h.store.Pool.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&name)
 
 	// Tạo token
-	token, err := auth.GenerateToken(h.jwtSecret, userID, req.Email, req.Name)
+	token, err := auth.GenerateToken(h.jwtSecret, userID, req.Email, name)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Đã xảy ra lỗi nội bộ!")
 		return
 	}
-	response.JSONWithCookie(w, http.StatusOK, loginResponse{Email: req.Email, Name: req.Name, Message: "Đăng nhập thành công."}, token, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
+	response.JSONWithCookie(w, http.StatusOK, loginResponse{Email: req.Email, Name: name, Message: "Đăng nhập thành công."}, token, "http://localhost:8080") // Cần điều chỉnh domain khi deploy thực tế
 }
 
 // Refesh tạo token mới dựa trên refresh token (ở đây dùng cookie session_token)

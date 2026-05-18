@@ -42,7 +42,7 @@ func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
 		        severity, message_template, is_enabled, created_at, updated_at
 		 FROM alert_rules WHERE site_id = $1 ORDER BY created_at DESC`, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Truy vấn thất bại")
+		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
 	defer rows.Close()
@@ -53,13 +53,13 @@ func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&r.ID, &r.SiteID, &r.TagID, &r.Name, &r.Description,
 			&r.MinValue, &r.MaxValue, &r.Severity, &r.MessageTemplate,
 			&r.IsEnabled, &r.CreatedAt, &r.UpdatedAt); err != nil {
-			response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Quyét dữ liệu thất bại")
+			response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
 			return
 		}
 		rules = append(rules, r)
 	}
 
-	response.JSON(w, http.StatusOK, rules)
+	response.ListJSON(w, http.StatusOK, rules, 1, len(rules), int64(len(rules)))
 }
 
 type CreateAlertRuleRequest struct {
@@ -92,16 +92,20 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var input CreateAlertRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 	if input.Severity != "INFO" && input.Severity != "WARNING" && input.Severity != "CRITICAL" {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Thiết lập mức độ nghiêm trọng không hợp lệ")
+		response.ValidationError(w, []response.ValidationErrorDetail{
+			{Field: "severity", Issue: "Mức độ phải là INFO, WARNING hoặc CRITICAL"},
+		})
 		return
 	}
 	tagID, err := uuid.Parse(input.TagID)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "ID thẻ không hợp lệ")
+		response.ValidationError(w, []response.ValidationErrorDetail{
+			{Field: "tag_id", Issue: "ID thẻ không hợp lệ"},
+		})
 		return
 	}
 
@@ -121,7 +125,7 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		&rule.MinValue, &rule.MaxValue, &rule.Severity, &rule.MessageTemplate,
 		&rule.IsEnabled, &rule.CreatedAt, &rule.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Tạo vai trò cảnh báo thất bại")
+		response.Error(w, http.StatusInternalServerError, "CREATE_FAILED", "Tạo quy tắc cảnh báo thất bại")
 		return
 	}
 
@@ -146,7 +150,7 @@ func (h *AlertRuleHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	ruleID, err := uuid.Parse(chi.URLParam(r, "ruleID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "ID quy tắc cảnh báo không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_RULE_ID", "ID quy tắc cảnh báo không hợp lệ")
 		return
 	}
 
@@ -159,7 +163,7 @@ func (h *AlertRuleHandler) Get(w http.ResponseWriter, r *http.Request) {
 		&rule.MinValue, &rule.MaxValue, &rule.Severity, &rule.MessageTemplate,
 		&rule.IsEnabled, &rule.CreatedAt, &rule.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusNotFound, "UNAUTHORIZED", "Quy tắc cảnh báo không tìm thấy")
+		response.Error(w, http.StatusNotFound, "ALERT_RULE_NOT_FOUND", "Quy tắc cảnh báo không tìm thấy")
 		return
 	}
 
@@ -195,13 +199,13 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	ruleID, err := uuid.Parse(chi.URLParam(r, "ruleID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "ID quy tắc cảnh báo không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_RULE_ID", "ID quy tắc cảnh báo không hợp lệ")
 		return
 	}
 
 	var input UpdateAlertRuleRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Data vào yêu cầu không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
 		return
 	}
 
@@ -245,7 +249,7 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		argIdx++
 	}
 	if len(args) == 0 {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "Không có gì để cập nhật")
+		response.Error(w, http.StatusBadRequest, "NO_FIELDS_TO_UPDATE", "Không có gì để cập nhật")
 		return
 	}
 	query = query[:len(query)-2] + `, updated_at = NOW() WHERE id = $` + strconv.Itoa(argIdx) + ` AND site_id = $` + strconv.Itoa(argIdx+1) + ` RETURNING id, site_id, tag_id, name, description, min_value, max_value, severity, message_template, is_enabled, created_at, updated_at`
@@ -257,7 +261,7 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		&rule.MinValue, &rule.MaxValue, &rule.Severity, &rule.MessageTemplate,
 		&rule.IsEnabled, &rule.CreatedAt, &rule.UpdatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Cập nhật quy tắc cảnh báo thất bại")
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật quy tắc cảnh báo thất bại")
 		return
 	}
 
@@ -280,13 +284,13 @@ func (h *AlertRuleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	ruleID, err := uuid.Parse(chi.URLParam(r, "ruleID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "UNAUTHORIZED", "ID quy tắc cảnh báo không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_RULE_ID", "ID quy tắc cảnh báo không hợp lệ")
 		return
 	}
 
 	_, err = h.store.Pool.Exec(r.Context(), "DELETE FROM alert_rules WHERE id = $1 AND site_id = $2", ruleID, membership.SiteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UNAUTHORIZED", "Xóa quy tắc cảnh báo thất bại")
+		response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa quy tắc cảnh báo thất bại")
 		return
 	}
 

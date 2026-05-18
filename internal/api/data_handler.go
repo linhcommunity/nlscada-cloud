@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"nlscada-cloud/internal/db/influxdb"
 	"nlscada-cloud/internal/db/postgres"
+	"nlscada-cloud/internal/response"
 
 	"github.com/go-chi/chi/v5"
 )

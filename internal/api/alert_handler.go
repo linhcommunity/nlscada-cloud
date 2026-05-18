@@ -103,7 +103,7 @@ func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 		alerts = append(alerts, a)
 	}
 
-	response.JSONWithPagination(w, http.StatusOK, alerts, page, limit, 0)
+	response.ListJSON(w, http.StatusOK, alerts, page, limit, 0)
 }
 
 type CreateAlertRequest struct {
@@ -140,16 +140,9 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Validate severity
 	if input.Severity != "INFO" && input.Severity != "WARNING" && input.Severity != "CRITICAL" {
-		response.Error(w, http.StatusBadRequest, "INVALID_SEVERITY", "Mức độ nghiêm trọng không hợp lệ")
-	}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Thêm yêu cầu không hợp lệ")
-		return
-	}
-
-	// Validate severity
-	if input.Severity != "INFO" && input.Severity != "WARNING" && input.Severity != "CRITICAL" {
-		response.Error(w, http.StatusBadRequest, "INVALID_SEVERITY", "Mức độ nghiêm trọng không hợp lệ")
+		response.ValidationError(w, []response.ValidationErrorDetail{
+			{Field: "severity", Issue: "Mức độ phải là INFO, WARNING hoặc CRITICAL"},
+		})
 		return
 	}
 
@@ -157,7 +150,9 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if input.DeviceID != nil && *input.DeviceID != "" {
 		id, err := uuid.Parse(*input.DeviceID)
 		if err != nil {
-			response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
+			response.ValidationError(w, []response.ValidationErrorDetail{
+				{Field: "device_id", Issue: "ID thiết bị không hợp lệ"},
+			})
 			return
 		}
 		deviceID = &id

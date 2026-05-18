@@ -61,3 +61,4 @@ dist/
 # Docker
 .env
 docker-compose.override.yml
+.aider*

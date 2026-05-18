@@ -209,13 +209,12 @@ definitions:
         type: string
       id:
         type: string
+      name:
+        type: string
     type: object
   api.loginRequest:
     properties:
       email:
-        type: string
-      name:
-        description: không bắt buộc, chỉ để phản hồi lại cho client
         type: string
       password:
         type: string
@@ -244,6 +243,8 @@ definitions:
         type: string
       message:
         description: Token    string    `json:"token"`
+        type: string
+      name:
         type: string
     type: object
   models.AlertLog:

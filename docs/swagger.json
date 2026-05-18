@@ -3376,6 +3376,9 @@
                 },
                 "id": {
                     "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -3383,10 +3386,6 @@
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "không bắt buộc, chỉ để phản hồi lại cho client",
                     "type": "string"
                 },
                 "password": {
@@ -3430,6 +3429,9 @@
                 },
                 "message": {
                     "description": "Token    string    `json:\"token\"`",
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }

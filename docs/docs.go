@@ -3382,6 +3382,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -3389,10 +3392,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "email": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "không bắt buộc, chỉ để phản hồi lại cho client",
                     "type": "string"
                 },
                 "password": {
@@ -3436,6 +3435,9 @@ const docTemplate = `{
                 },
                 "message": {
                     "description": "Token    string    ` + "`" + `json:\"token\"` + "`" + `",
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
