@@ -82,12 +82,12 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 		// --- Devices (xem: tất cả; tạo/sửa/xóa: admin) ---
 		deviceHandler := NewDeviceHandler(store)
 		r.Get("/devices", deviceHandler.List)
-		r.Get("/devices/{deviceID}/", deviceHandler.Get)
+		r.Get("/devices/{deviceID}", deviceHandler.Get)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireRole("admin"))
 			r.Post("/devices", deviceHandler.Create)
-			r.Put("/devices/{deviceID}/", deviceHandler.Update)
-			r.Delete("/devices/{deviceID}/", deviceHandler.Delete)
+			r.Put("/devices/{deviceID}", deviceHandler.Update)
+			r.Delete("/devices/{deviceID}", deviceHandler.Delete)
 		})
 
 		// --- Tags (xem: tất cả; tạo/sửa/xóa: admin) ---
