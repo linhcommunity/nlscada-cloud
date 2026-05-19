@@ -1421,6 +1421,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/sites/{siteID}/devices/test": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Devices"
+                ],
+                "summary": "Test API",
+                "responses": {
+                    "200": {
+                        "description": "Test thành công",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/sites/{siteID}/devices/{deviceID}": {
             "get": {
                 "security": [
@@ -1538,8 +1569,20 @@ const docTemplate = `{
                             ]
                         }
                     },
-                    "404": {
-                        "description": "Không tìm thấy",
+                    "400": {
+                        "description": "ID thiết bị không hợp lệ",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Bạn không có quyền truy cập tài nguyên này",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Cập nhật thiết bị thất bại",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1578,6 +1621,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Không tìm thấy",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Xóa thiết bị thất bại",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1913,6 +1962,49 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/sites/{siteID}/leave": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Người dùng tự xóa membership của chính mình khỏi site. Không thể rời nếu là admin cuối cùng.",
+                "tags": [
+                    "Memberships"
+                ],
+                "summary": "Tự rời khỏi site",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Site UUID",
+                        "name": "siteID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Đã rời khỏi site",
+                        "schema": {
+                            "$ref": "#/definitions/response.SuccessResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Không thể rời vì là admin cuối cùng",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }

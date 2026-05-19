@@ -4,11 +4,13 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/pkg/channel"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 type subscription struct {
@@ -25,6 +27,11 @@ type controlRequest struct {
 	value    string
 }
 
+type forceDisconnectRequest struct {
+	UserID uuid.UUID
+	SiteID uuid.UUID
+}
+
 type Hub struct {
 	store           *postgres.Store
 	clients         map[*Client]bool
@@ -33,6 +40,7 @@ type Hub struct {
 	subscribe       chan subscription
 	unsubscribe     chan subscription
 	controlRequests chan controlRequest
+	forceDisconnect chan forceDisconnectRequest
 	jwtSecret       string
 
 	// Map: siteID -> deviceID -> set of clients
@@ -49,6 +57,7 @@ func NewHub(store *postgres.Store, jwtSecret string) *Hub {
 		subscribe:       make(chan subscription),
 		unsubscribe:     make(chan subscription),
 		controlRequests: make(chan controlRequest, 100),
+		forceDisconnect: make(chan forceDisconnectRequest),
 		devices:         make(map[string]map[string]map[*Client]bool),
 		jwtSecret:       jwtSecret,
 	}
@@ -158,6 +167,27 @@ func (h *Hub) Run() {
 			case req.client.send <- ack:
 			default:
 			}
+
+		case req := <-h.forceDisconnect:
+			h.mu.RLock()
+			// Tìm tất cả client có userID trùng và đang hoạt động trong siteID đó
+			for client := range h.clients {
+				if client.userID == req.UserID {
+					// Nếu siteID không nil, kiểm tra client có đang trong site đó không
+					if req.SiteID != uuid.Nil {
+						if _, ok := client.permissions[req.SiteID.String()]; !ok {
+							continue
+						}
+					}
+					// Gửi close message với code 4001
+					msg := websocket.FormatCloseMessage(4001, "membership changed")
+					client.conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(writeWait))
+					client.conn.Close()
+					h.unregister <- client
+					log.Printf("Force disconnected user %s from site %s", req.UserID, req.SiteID)
+				}
+			}
+			h.mu.RUnlock()
 		}
 	}
 }
@@ -178,4 +208,12 @@ func ServeWebSocket(hub *Hub, store *postgres.Store, userID uuid.UUID, w http.Re
 	hub.register <- client
 	go client.writePump()
 	go client.readPump()
+}
+
+// ForceDisconnect được gọi từ bên ngoài (handler) để yêu cầu Hub ngắt kết nối user
+func (h *Hub) ForceDisconnect(userID, siteID uuid.UUID) {
+	h.forceDisconnect <- forceDisconnectRequest{
+		UserID: userID,
+		SiteID: siteID,
+	}
 }

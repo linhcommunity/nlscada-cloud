@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 
 	"nlscada-cloud/internal/db/postgres"
@@ -77,6 +79,7 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
 // @Router /sites/{siteID}/devices/{deviceID} [get]
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
+	log.Println("Get device called, URL:", r.URL.Path)
 	membership := GetMembership(r)
 	if membership == nil {
 		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
@@ -89,7 +92,7 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	siteID := membership.SiteID
-
+	log.Printf("SiteID: %s, DeviceID: %s", id, siteID)
 	var d models.Device
 	err = h.store.Pool.QueryRow(r.Context(),
 		`SELECT id, site_id, name, device_type, mqtt_client_id, status, last_heartbeat, created_at 
@@ -149,16 +152,20 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Param request body UpdateDeviceRequest true "Thông tin cập nhật"
 // @Security BearerAuth
 // @Success 200 {object} response.SuccessResponse{data=models.Device} "Thiết bị đã cập nhật"
-// @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Failure 401 {object} response.ErrorResponse "Bạn không có quyền truy cập tài nguyên này"
+// @Failure 400 {object} response.ErrorResponse "ID thiết bị không hợp lệ"
+// @Failure 500 {object} response.ErrorResponse "Cập nhật thiết bị thất bại"
 // @Router /sites/{siteID}/devices/{deviceID} [put]
 func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		fmt.Print("Lỗi 1")
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này") // code : 401
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
+		fmt.Print("Lỗi 2")
 		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
 		return
 	}
@@ -167,10 +174,10 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var input UpdateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ")
+		fmt.Print("Lỗi 3")
+		response.Error(w, http.StatusBadRequest, "INVALID_BODY", "Dữ liệu yêu cầu không hợp lệ") // code : 400
 		return
 	}
-
 	var d models.Device
 	err = h.store.Pool.QueryRow(r.Context(),
 		`UPDATE devices SET name=$1, device_type=$2 
@@ -179,7 +186,8 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		input.Name, input.DeviceType, id, siteID).
 		Scan(&d.ID, &d.SiteID, &d.Name, &d.DeviceType, &d.MqttClientID, &d.Status, &d.LastHeartbeat, &d.CreatedAt)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật thiết bị thất bại")
+		fmt.Print("Lỗi 4: ", err)
+		response.Error(w, http.StatusInternalServerError, "UPDATE_FAILED", "Cập nhật thiết bị thất bại") // code : 500
 		return
 	}
 
@@ -193,16 +201,17 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Success 204 "Đã xóa"
 // @Failure 404 {object} response.ErrorResponse "Không tìm thấy"
+// @Failure 500 {object} response.ErrorResponse "Xóa thiết bị thất bại"
 // @Router /sites/{siteID}/devices/{deviceID} [delete]
 func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	membership := GetMembership(r)
 	if membership == nil {
-		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này") // code : 401
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "deviceID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ")
+		response.Error(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "ID thiết bị không hợp lệ") // code : 400
 		return
 	}
 
@@ -211,9 +220,18 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_, err = h.store.Pool.Exec(r.Context(),
 		"DELETE FROM devices WHERE id=$1 AND site_id=$2", id, siteID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại")
+		response.Error(w, http.StatusInternalServerError, "SCAN_FAILED", "Quét dữ liệu thất bại") // code : 500
 		return
 	}
 
 	response.JSON(w, http.StatusOK, nil)
+}
+
+// @Summary Test API
+// @Tags Devices
+// @Produce json
+// @Success 200 {object} response.SuccessResponse{data=string} "Test thành công"
+// @Router /sites/{siteID}/devices/test [get]
+func (h *DeviceHandler) Test(w http.ResponseWriter, r *http.Request) {
+	response.JSON(w, http.StatusOK, map[string]string{"message": "Test thành công"})
 }

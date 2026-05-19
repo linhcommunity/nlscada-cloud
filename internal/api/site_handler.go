@@ -96,7 +96,7 @@ func (h *SiteHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Lấy thông tin site vừa tạo để trả về
 	var s models.Site
-	err = h.store.Pool.QueryRow(ctx, "SELECT id, name, created_at FROM sites WHERE id = $1", siteID).Scan(&s.ID, &s.Name, &s.CreatedAt)
+	err = h.store.Pool.QueryRow(ctx, "SELECT id, name, description created_at FROM sites WHERE id = $1", siteID).Scan(&s.ID, &s.Name, &s.Description, &s.CreatedAt)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Lỗi nội bộ")
 		return
@@ -131,7 +131,7 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.store.Pool.Query(r.Context(),
-		`SELECT s.id, s.name, s.created_at, m.role 
+		`SELECT s.id, s.name, s.description, s.created_at, m.role 
 		 FROM sites s 
 		 INNER JOIN memberships m ON s.id = m.site_id 
 		 WHERE m.user_id = $1`, claims.UserID)
@@ -142,16 +142,17 @@ func (h *SiteHandler) List(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type SiteInfo struct {
-		ID        uuid.UUID `json:"id"`
-		Name      string    `json:"name"`
-		CreatedAt time.Time `json:"created_at"`
-		Role      string    `json:"role"`
+		ID          uuid.UUID `json:"id"`
+		Name        string    `json:"name"`
+		Description string    `json:"description"`
+		CreatedAt   time.Time `json:"created_at"`
+		Role        string    `json:"role"`
 	}
 
 	var sites []SiteInfo
 	for rows.Next() {
 		var s SiteInfo
-		if err := rows.Scan(&s.ID, &s.Name, &s.CreatedAt, &s.Role); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Description, &s.CreatedAt, &s.Role); err != nil {
 			response.Error(w, http.StatusInternalServerError, "DELETE_FAILED", "Xóa site thất bại")
 			return
 		}
@@ -262,7 +263,7 @@ func (h *SiteHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var site models.Site
 	err = h.store.Pool.QueryRow(r.Context(),
-		`SELECT id, name, created_at FROM sites WHERE id=$1`, membership.SiteID).Scan(&site.ID, &site.Name, &site.CreatedAt)
+		`SELECT id, name, description, created_at FROM sites WHERE id=$1`, membership.SiteID).Scan(&site.ID, &site.Name, &site.Description, &site.CreatedAt)
 	if err != nil {
 		response.Error(w, http.StatusNotFound, "SITE_NOT_FOUND", "Site không tồn tại")
 		return

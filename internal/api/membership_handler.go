@@ -8,6 +8,7 @@ import (
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/models"
 	"nlscada-cloud/internal/response"
+	"nlscada-cloud/internal/ws"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -15,10 +16,11 @@ import (
 
 type MembershipHandler struct {
 	store *postgres.Store
+	hub   *ws.Hub
 }
 
-func NewMembershipHandler(store *postgres.Store) *MembershipHandler {
-	return &MembershipHandler{store: store}
+func NewMembershipHandler(store *postgres.Store, hub *ws.Hub) *MembershipHandler {
+	return &MembershipHandler{store: store, hub: hub}
 }
 
 type InviteRequest struct {
@@ -168,6 +170,11 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Nếu role bị hạ xuống viewer hoặc auditor, có thể force disconnect để áp dụng quyền mới
+	if input.Role == "viewer" || input.Role == "auditor" {
+		h.hub.ForceDisconnect(userID, siteID)
+	}
+
 	response.JSON(w, http.StatusOK, m)
 }
 
@@ -195,6 +202,73 @@ func (h *MembershipHandler) Remove(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "QUERY_FAILED", "Truy vấn thất bại")
 		return
 	}
+
+	// Force disconnect user khỏi site này
+	h.hub.ForceDisconnect(userID, siteID)
+
+	response.JSON(w, http.StatusOK, nil)
+}
+
+// Leave cho phép user tự rời khỏi site
+// @Summary Tự rời khỏi site
+// @Description Người dùng tự xóa membership của chính mình khỏi site. Không thể rời nếu là admin cuối cùng.
+// @Tags Memberships
+// @Param siteID path string true "Site UUID"
+// @Security BearerAuth
+// @Success 200 {object} response.SuccessResponse "Đã rời khỏi site"
+// @Failure 403 {object} response.ErrorResponse "Không có quyền"
+// @Failure 409 {object} response.ErrorResponse "Không thể rời vì là admin cuối cùng"
+// @Router /sites/{siteID}/leave [post]
+func (h *MembershipHandler) Leave(w http.ResponseWriter, r *http.Request) {
+	claims := GetClaims(r)
+	if claims == nil {
+		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "Bạn không có quyền truy cập tài nguyên này")
+		return
+	}
+
+	siteID, err := uuid.Parse(chi.URLParam(r, "siteID"))
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "INVALID_SITE_ID", "ID site không hợp lệ")
+		return
+	}
+
+	// Kiểm tra user có membership trong site không
+	var currentRole string
+	err = h.store.Pool.QueryRow(r.Context(),
+		"SELECT role FROM memberships WHERE user_id = $1 AND site_id = $2",
+		claims.UserID, siteID).Scan(&currentRole)
+	if err != nil {
+		response.Error(w, http.StatusNotFound, "MEMBERSHIP_NOT_FOUND", "Bạn không phải là thành viên của site này")
+		return
+	}
+
+	// Nếu user là admin, kiểm tra xem có phải admin cuối cùng không
+	if currentRole == "admin" {
+		var adminCount int
+		err = h.store.Pool.QueryRow(r.Context(),
+			"SELECT COUNT(*) FROM memberships WHERE site_id = $1 AND role = 'admin'",
+			siteID).Scan(&adminCount)
+		if err != nil {
+			response.Error(w, http.StatusInternalServerError, "FAILED_TO_CHECK_ADMIN_COUNT", "Failed to check admin count")
+			return
+		}
+		if adminCount <= 1 {
+			response.Error(w, http.StatusConflict, "LAST_ADMIN_CANNOT_LEAVE", "Bạn là quản trị viên cuối cùng. Vui lòng chuyển quyền quản trị viên sang thành viên khác trước khi rời khỏi site.")
+			return
+		}
+	}
+
+	// Xóa membership
+	_, err = h.store.Pool.Exec(r.Context(),
+		"DELETE FROM memberships WHERE user_id = $1 AND site_id = $2",
+		claims.UserID, siteID)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "FAILED_TO_LEAVE_SITE", "Failed to leave site")
+		return
+	}
+
+	// Force disconnect WebSocket của user khỏi site này
+	h.hub.ForceDisconnect(claims.UserID, siteID)
 
 	response.JSON(w, http.StatusOK, nil)
 }

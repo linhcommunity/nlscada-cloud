@@ -80,7 +80,6 @@ func SiteMiddleware(store *postgres.Store) func(http.Handler) http.Handler {
 				response.Error(w, http.StatusForbidden, "FORBIDDEN", "Bạn không có quyền truy cập vào site này.")
 				return
 			}
-
 			// Lưu thông tin membership vào context
 			membership := struct {
 				SiteID uuid.UUID

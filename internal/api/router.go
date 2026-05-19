@@ -68,9 +68,9 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 		r.Get("/", siteHandler.Get)       // ai cũng xem
 		r.Put("/", siteHandler.Update)    // tự kiểm tra admin trong handler
 		r.Delete("/", siteHandler.Delete) // tự kiểm tra admin trong handler
-
 		// --- Memberships (chỉ admin) ---
-		membershipHandler := NewMembershipHandler(store)
+		membershipHandler := NewMembershipHandler(store, hub)
+		r.Post("/leave", membershipHandler.Leave)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireRole("admin"))
 			r.Get("/members", membershipHandler.List)
@@ -82,12 +82,12 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 		// --- Devices (xem: tất cả; tạo/sửa/xóa: admin) ---
 		deviceHandler := NewDeviceHandler(store)
 		r.Get("/devices", deviceHandler.List)
-		r.Get("/devices/{deviceID}", deviceHandler.Get)
+		r.Get("/devices/{deviceID}/", deviceHandler.Get)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireRole("admin"))
 			r.Post("/devices", deviceHandler.Create)
-			r.Put("/devices/{deviceID}", deviceHandler.Update)
-			r.Delete("/devices/{deviceID}", deviceHandler.Delete)
+			r.Put("/devices/{deviceID}/", deviceHandler.Update)
+			r.Delete("/devices/{deviceID}/", deviceHandler.Delete)
 		})
 
 		// --- Tags (xem: tất cả; tạo/sửa/xóa: admin) ---

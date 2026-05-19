@@ -1434,6 +1434,10 @@ paths:
           description: Không tìm thấy
           schema:
             $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Xóa thiết bị thất bại
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Xóa thiết bị
@@ -1504,8 +1508,16 @@ paths:
                 data:
                   $ref: '#/definitions/models.Device'
               type: object
-        "404":
-          description: Không tìm thấy
+        "400":
+          description: ID thiết bị không hợp lệ
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Bạn không có quyền truy cập tài nguyên này
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Cập nhật thiết bị thất bại
           schema:
             $ref: '#/definitions/response.ErrorResponse'
       security:
@@ -1712,6 +1724,51 @@ paths:
       summary: Tạo tag mới
       tags:
       - Tags
+  /sites/{siteID}/devices/test:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Test thành công
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.SuccessResponse'
+            - properties:
+                data:
+                  type: string
+              type: object
+      summary: Test API
+      tags:
+      - Devices
+  /sites/{siteID}/leave:
+    post:
+      description: Người dùng tự xóa membership của chính mình khỏi site. Không thể
+        rời nếu là admin cuối cùng.
+      parameters:
+      - description: Site UUID
+        in: path
+        name: siteID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Đã rời khỏi site
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "403":
+          description: Không có quyền
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Không thể rời vì là admin cuối cùng
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Tự rời khỏi site
+      tags:
+      - Memberships
   /sites/{siteID}/logs/audit:
     get:
       parameters:
