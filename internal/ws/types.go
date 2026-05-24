@@ -1,6 +1,9 @@
 package ws
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 type WSMessage struct {
 	Event     string          `json:"event"`
@@ -48,4 +51,32 @@ type ControlAckPayload struct {
 type ErrorPayload struct {
 	Message string `json:"message"`
 	Code    string `json:"code"`
+}
+
+type SystemEventPayload struct {
+	EventID   string `json:"event_id"`
+	EventType string `json:"event_type"`
+	Severity  string `json:"severity"`
+	Message   string `json:"message"`
+	DeviceID  string `json:"device_id,omitempty"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+func NewWSMessage(event string, payload interface{}) []byte {
+	data, _ := json.Marshal(payload)
+	msg := WSMessage{
+		Event:     event,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Payload:   data,
+	}
+	raw, _ := json.Marshal(msg)
+	return raw
+}
+
+// SiteInvitedPayload là payload khi user được mời vào site mới
+type SiteInvitedPayload struct {
+	SiteID   string `json:"site_id"`
+	SiteName string `json:"site_name"`
+	Role     string `json:"role"`
+	Message  string `json:"message"`
 }

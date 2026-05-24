@@ -129,6 +129,9 @@ func (h *MembershipHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	var siteName string
+	h.store.Pool.QueryRow(r.Context(), "SELECT name FROM sites WHERE id = $1", siteID).Scan(&siteName)
+	h.hub.NotifyNewMembership(userID, siteID, siteName, input.Role)
 
 	response.JSON(w, http.StatusCreated, m)
 }
@@ -171,9 +174,10 @@ func (h *MembershipHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Nếu role bị hạ xuống viewer hoặc auditor, có thể force disconnect để áp dụng quyền mới
-	if input.Role == "viewer" || input.Role == "auditor" {
-		h.hub.ForceDisconnect(userID, siteID)
-	}
+	// if input.Role == "viewer" || input.Role == "auditor" {
+	// 	h.hub.ForceDisconnect(userID, siteID)
+	// }
+	h.hub.ReloadPermissions(userID, siteID) // Thay vì ForceDisconnect
 
 	response.JSON(w, http.StatusOK, m)
 }

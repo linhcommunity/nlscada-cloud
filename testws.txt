@@ -1,0 +1,30 @@
+1> sub thành công
+{
+  "event": "subscribe",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "payload": {
+    "site_id": "b24a93df-8f06-4f14-b403-d452717943eb",
+    "device_id": "244ab586-5eb1-4880-9595-614d98d7c50d"
+  }
+}
+2> unsub 
+{
+  "event": "unsubscribe",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "payload": {
+    "site_id": "b24a93df-8f06-4f14-b403-d452717943eb",
+    "device_id": "244ab586-5eb1-4880-9595-614d98d7c50d"
+  }
+}
+3>test control
+{
+  "event": "control",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "payload": {
+    "device_id": "244ab586-5eb1-4880-9595-614d98d7c50d",
+    "tag_name": "Cảm biến nhiệt độ",
+    "value": "1"
+  }
+}
+
+Gateway phải gửi nhịp tim lên

@@ -19,5 +19,16 @@ type AlertNotification struct {
 	TagName  string    `json:"tag_name,omitempty"`
 }
 
+type SystemEventNotification struct {
+	EventID   string    `json:"event_id"`
+	SiteID    uuid.UUID `json:"site_id"`
+	DeviceID  string    `json:"device_id,omitempty"`
+	EventType string    `json:"event_type"`
+	Severity  string    `json:"severity"`
+	Message   string    `json:"message"`
+	Timestamp int64     `json:"timestamp"`
+}
+
 var RealTimeDataChan = make(chan RealTimeUpdate, 1000)
 var AlertNotificationChan = make(chan AlertNotification, 500)
+var SystemEventNotificationChan = make(chan SystemEventNotification, 500)

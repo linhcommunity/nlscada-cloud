@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -17,20 +18,37 @@ const (
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 512
+	// Rate limiting: tối đa 10 message/giây, burst 5
+	maxMsgPerSec = 10
+	burstSize    = 5
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	// Kiểm tra Origin – chỉ cho phép domain của WebBase
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		// Cho phép localhost cho dev, thêm domain production sau
+		allowedOrigins := []string{"http://localhost:3000", "http://localhost:5173", "https://yourdomain.com"}
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				return true
+			}
+		}
+		log.Printf("WS: Origin not allowed: %s", origin)
+		return false
+	},
 }
 
 type Client struct {
 	hub         *Hub
 	conn        *websocket.Conn
-	send        chan []byte
+	send        chan []byte   // buffered (256)
+	closeSignal chan struct{} // buffered 1, tín hiệu yêu cầu đóng từ Hub
 	userID      uuid.UUID
 	permissions map[string]string // siteID -> role
+	limiter     *rate.Limiter     // giới hạn tốc độ gửi message
 	mu          sync.Mutex
 }
 
@@ -56,6 +74,7 @@ func (c *Client) loadPermissions() {
 
 func (c *Client) readPump() {
 	defer func() {
+		// Chỉ unregister một lần duy nhất
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -67,12 +86,27 @@ func (c *Client) readPump() {
 	})
 
 	for {
+		select {
+		case <-c.closeSignal:
+			// Hub yêu cầu đóng kết nối (ví dụ membership thay đổi)
+			msg := websocket.FormatCloseMessage(4001, "membership changed")
+			c.conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(writeWait))
+			return
+		default:
+		}
+
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("WS read error: %v", err)
 			}
 			break
+		}
+
+		// Rate limiting
+		if !c.limiter.Allow() {
+			c.send <- c.errorMessage("rate limit exceeded", "RATE_LIMITED")
+			continue
 		}
 
 		var msg WSMessage
@@ -88,18 +122,12 @@ func (c *Client) readPump() {
 				c.send <- c.errorMessage("invalid subscribe payload", "PARSE_ERROR")
 				continue
 			}
-			if p.SiteID == "" || p.DeviceID == "" {
-				c.send <- c.errorMessage("site_id and device_id required", "INVALID_PARAMS")
-				continue
-			}
-
 			// Kiểm tra quyền
 			if _, ok := c.permissions[p.SiteID]; !ok {
 				c.send <- c.makeMessage("sub_error", ErrorPayload{Message: "forbidden", Code: "FORBIDDEN"})
 				continue
 			}
-
-			// Kiểm tra device tồn tại trong site
+			// Kiểm tra device
 			var exists bool
 			err := c.hub.store.Pool.QueryRow(context.Background(),
 				"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)",
@@ -108,22 +136,16 @@ func (c *Client) readPump() {
 				c.send <- c.makeMessage("sub_error", ErrorPayload{Message: "device not found in site", Code: "NOT_FOUND"})
 				continue
 			}
-
 			c.hub.subscribe <- subscription{client: c, siteID: p.SiteID, deviceID: p.DeviceID}
 			c.send <- c.makeMessage("sub_ok", SubOkPayload{SiteID: p.SiteID, DeviceID: p.DeviceID})
-			log.Printf("WS client subscribed to device %s in site %s", p.DeviceID, p.SiteID)
 
 		case "unsubscribe":
 			var p SubscribePayload
 			if err := json.Unmarshal(msg.Payload, &p); err != nil {
-				c.send <- c.errorMessage("invalid unsubscribe payload", "PARSE_ERROR")
-				continue
-			}
-			if p.SiteID == "" || p.DeviceID == "" {
-				c.send <- c.errorMessage("site_id and device_id required", "INVALID_PARAMS")
 				continue
 			}
 			c.hub.unsubscribe <- subscription{client: c, siteID: p.SiteID, deviceID: p.DeviceID}
+			c.send <- c.makeMessage("unsub_ok", SubOkPayload{SiteID: p.SiteID, DeviceID: p.DeviceID})
 
 		case "control":
 			var p ControlPayload
@@ -131,12 +153,6 @@ func (c *Client) readPump() {
 				c.send <- c.errorMessage("invalid control payload", "PARSE_ERROR")
 				continue
 			}
-			if p.DeviceID == "" || p.TagName == "" || p.Value == "" {
-				c.send <- c.errorMessage("device_id, tag_name, value required", "INVALID_PARAMS")
-				continue
-			}
-
-			// Xác định site của device và kiểm tra quyền
 			var siteID uuid.UUID
 			err := c.hub.store.Pool.QueryRow(context.Background(),
 				"SELECT site_id FROM devices WHERE id = $1", p.DeviceID).Scan(&siteID)
@@ -149,8 +165,6 @@ func (c *Client) readPump() {
 				c.send <- c.makeMessage("control_ack", ControlAckPayload{LogID: "", Status: "FORBIDDEN"})
 				continue
 			}
-
-			// Gửi vào channel để ControlHandler xử lý (hoặc xử lý trực tiếp ở đây)
 			c.hub.controlRequests <- controlRequest{
 				client:   c,
 				siteID:   siteID.String(),

@@ -10,6 +10,7 @@ import (
 	"nlscada-cloud/internal/db/influxdb"
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/models"
+	"nlscada-cloud/internal/ws"
 	"nlscada-cloud/pkg/channel"
 
 	"github.com/google/uuid"
@@ -28,19 +29,22 @@ type GatewayMessage struct {
 
 // GatewayEvent là cấu trúc JSON payload từ Gateway cho event
 type GatewayEvent struct {
-	EventType     string `json:"event_type"`
-	SeverityLevel string `json:"severity"`
-	Message       string `json:"message"`
-	Timestamp     int64  `json:"timestamp"`
+	EventType string `json:"event_type"`
+	Severity  string `json:"severity"`
+	Message   string `json:"message"`
+	Timestamp int64  `json:"timestamp"`
+	LogID     string `json:"log_id,omitempty"` // Dùng cho CMD_RESULT
+	Status    string `json:"status,omitempty"` // Dùng cho CMD_RESULT
 }
 
 type Service struct {
 	pg     *postgres.Store
 	influx *influxdb.Writer
+	hub    *ws.Hub
 }
 
-func NewService(pg *postgres.Store, influx *influxdb.Writer) *Service {
-	return &Service{pg: pg, influx: influx}
+func NewService(pg *postgres.Store, influx *influxdb.Writer, hub *ws.Hub) *Service {
+	return &Service{pg: pg, influx: influx, hub: hub}
 }
 
 // HandleData xử lý message MQTT từ Gateway (data và heartbeat)
@@ -94,13 +98,57 @@ func (s *Service) HandleEvent(topic string, payload []byte) {
 		return
 	}
 
+	// Xử lý CMD_RESULT
+	if event.EventType == "CMD_RESULT" {
+		if event.LogID != "" && event.Status != "" {
+			// 1. Cập nhật control_log
+			_, err := s.pg.Pool.Exec(context.Background(),
+				"UPDATE control_logs SET status = $1, acknowledged_at = NOW() WHERE id = $2",
+				event.Status, event.LogID)
+			if err != nil {
+				log.Printf("Ingest: update control_log error: %v", err)
+				return
+			}
+
+			// 2. Tìm user_id từ control_log
+			var userID uuid.UUID
+			err = s.pg.Pool.QueryRow(context.Background(),
+				"SELECT user_id FROM control_logs WHERE id = $1", event.LogID).Scan(&userID)
+			if err != nil {
+				log.Printf("Ingest: query user_id error: %v", err)
+				return
+			}
+
+			// 3. Gửi control_ack qua WebSocket nếu hub tồn tại
+			if s.hub != nil {
+				msg := ws.NewWSMessage("control_ack", ws.ControlAckPayload{
+					LogID:  event.LogID,
+					Status: event.Status,
+				})
+				s.hub.SendToUser(userID, msg)
+			}
+		}
+		return
+	}
+
+	var eventID uuid.UUID
 	// Ghi system_event_logs
-	_, err = s.pg.Pool.Exec(context.Background(),
+	err = s.pg.Pool.QueryRow(context.Background(),
 		`INSERT INTO system_event_logs (site_id, device_id, event_type, severity_level, message)
 		 VALUES ($1, $2, $3, $4, $5)`,
-		siteID, deviceID, event.EventType, event.SeverityLevel, event.Message)
+		siteID, deviceID, event.EventType, event.Severity, event.Message).Scan(&eventID)
 	if err != nil {
 		log.Printf("Ingest: failed to insert system event: %v", err)
+	}
+
+	channel.SystemEventNotificationChan <- channel.SystemEventNotification{
+		EventID:   eventID.String(), // lấy từ DB insert
+		SiteID:    siteID,
+		DeviceID:  deviceID.String(),
+		EventType: event.EventType,
+		Severity:  event.Severity,
+		Message:   event.Message,
+		Timestamp: event.Timestamp,
 	}
 }
 
@@ -111,7 +159,7 @@ func (s *Service) handleDataMessage(siteID, deviceID uuid.UUID, payload []byte) 
 		return
 	}
 
-	// Kiểm tra device tồn tại
+	// Kiểm tra device tồn tại (whitelist)
 	var exists bool
 	err := s.pg.Pool.QueryRow(context.Background(),
 		"SELECT EXISTS(SELECT 1 FROM devices WHERE id = $1 AND site_id = $2)", deviceID, siteID).Scan(&exists)
@@ -144,13 +192,20 @@ func (s *Service) handleDataMessage(siteID, deviceID uuid.UUID, payload []byte) 
 		s.evaluateAlert(siteID, deviceID, tag.Name, tag.Value)
 	}
 
-	// Đẩy realtime update
+	// Đẩy realtime update vào channel
 	channel.RealTimeDataChan <- channel.RealTimeUpdate{
 		Type:      "tag_update",
 		SiteID:    siteID,
 		DeviceID:  deviceID,
 		Timestamp: msg.Timestamp,
 		Tags:      tagMap,
+	}
+
+	_, err = s.pg.Pool.Exec(context.Background(),
+		"UPDATE devices SET last_heartbeat = NOW(), status = 'online' WHERE id = $1 AND site_id = $2",
+		deviceID, siteID)
+	if err != nil {
+		log.Printf("Ingest: update heartbeat error: %v", err)
 	}
 }
 
@@ -164,7 +219,6 @@ func (s *Service) handleHeartbeat(siteID, deviceID uuid.UUID) {
 }
 
 func (s *Service) evaluateAlert(siteID, deviceID uuid.UUID, tagName string, value interface{}) {
-	// Lấy alert_rules cho tag này
 	rows, err := s.pg.Pool.Query(context.Background(),
 		`SELECT id, name, min_value, max_value, severity, message_template
 		 FROM alert_rules
@@ -179,7 +233,7 @@ func (s *Service) evaluateAlert(siteID, deviceID uuid.UUID, tagName string, valu
 
 	floatVal, ok := toFloat64(value)
 	if !ok {
-		return // không thể so sánh nếu không phải số
+		return
 	}
 
 	for rows.Next() {
@@ -197,7 +251,6 @@ func (s *Service) evaluateAlert(siteID, deviceID uuid.UUID, tagName string, valu
 		}
 
 		if triggered {
-			// Tạo alert_log
 			var alertID uuid.UUID
 			msg := rule.Name
 			if rule.MessageTemplate != nil {
@@ -249,15 +302,30 @@ func toFloat64(value interface{}) (float64, bool) {
 	}
 }
 
-// StartOfflineChecker định kỳ chuyển trạng thái offline
+// StartOfflineChecker định kỳ chuyển trạng thái offline nếu quá 90s không có heartbeat
 func (s *Service) StartOfflineChecker(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {
-			_, err := s.pg.Pool.Exec(context.Background(),
-				"UPDATE devices SET status = 'offline' WHERE last_heartbeat < NOW() - INTERVAL '90 seconds' AND status = 'online'")
+			rows, err := s.pg.Pool.Query(context.Background(),
+				"UPDATE devices SET status = 'offline' WHERE last_heartbeat < NOW() - INTERVAL '90 seconds' AND status = 'online' RETURNING id, site_id")
 			if err != nil {
 				log.Printf("Ingest: offline check error: %v", err)
+				return
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var deviceID, siteID uuid.UUID
+				rows.Scan(&deviceID, &siteID)
+				// Gửi system event
+				channel.SystemEventNotificationChan <- channel.SystemEventNotification{
+					SiteID:    siteID,
+					DeviceID:  deviceID.String(),
+					EventType: "DEVICE_OFFLINE",
+					Severity:  "WARNING",
+					Message:   "Device went offline due to inactivity",
+					Timestamp: time.Now().Unix(),
+				}
 			}
 		}
 	}()

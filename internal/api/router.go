@@ -5,6 +5,7 @@ import (
 
 	_ "nlscada-cloud/docs" // import để swagger có thể tìm thấy doc.go
 	"nlscada-cloud/internal/auth"
+	"nlscada-cloud/internal/control"
 	"nlscada-cloud/internal/db/influxdb"
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/mqtt"
@@ -16,7 +17,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWriter *influxdb.Writer, jwtSecret string, hub *ws.Hub, mqttClient *mqtt.Client) *chi.Mux {
+func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWriter *influxdb.Writer, jwtSecret string, hub *ws.Hub, mqttClient *mqtt.Client, controlService *control.Service) *chi.Mux {
 	r := chi.NewRouter()
 	// Middleware cơ bản của chi (logger, recover)
 	r.Use(middleware.Logger)
@@ -81,32 +82,36 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 
 		// --- Devices (xem: tất cả; tạo/sửa/xóa: admin) ---
 		deviceHandler := NewDeviceHandler(store)
+		tagHandler := NewTagHandler(store)
+		dataHandler := NewDataHandler(store, influxReader)
+		controlHandler := NewControlHandler(store, mqttClient, controlService)
+
 		r.Get("/devices", deviceHandler.List)
-		r.Get("/devices/{deviceID}", deviceHandler.Get)
 		r.Group(func(r chi.Router) {
 			r.Use(RequireRole("admin"))
 			r.Post("/devices", deviceHandler.Create)
-			r.Put("/devices/{deviceID}", deviceHandler.Update)
-			r.Delete("/devices/{deviceID}", deviceHandler.Delete)
 		})
 
-		// --- Tags (xem: tất cả; tạo/sửa/xóa: admin) ---
-		tagHandler := NewTagHandler(store)
-		r.Get("/devices/{deviceID}/tags", tagHandler.List)
-		r.Group(func(r chi.Router) {
-			r.Use(RequireRole("admin"))
-			r.Post("/devices/{deviceID}/tags", tagHandler.Create)
-			r.Put("/tags/{tagID}", tagHandler.Update)
-			r.Delete("/tags/{tagID}", tagHandler.Delete)
-		})
-
-		// --- Data Query (tất cả) ---
-		dataHandler := NewDataHandler(store, influxReader)
-		r.Get("/devices/{deviceID}/data", dataHandler.Query)
-
-		// --- Control (gửi lệnh: admin, operator; xem logs: admin, operator, auditor) ---
-		controlHandler := NewControlHandler(store)
 		r.Route("/devices/{deviceID}", func(r chi.Router) {
+			// Device CRUD
+			r.Get("/", deviceHandler.Get)
+			r.Group(func(r chi.Router) {
+				r.Use(RequireRole("admin"))
+				r.Put("/", deviceHandler.Update)
+				r.Delete("/", deviceHandler.Delete)
+			})
+
+			// Tags
+			r.Get("/tags", tagHandler.List)
+			r.Group(func(r chi.Router) {
+				r.Use(RequireRole("admin"))
+				r.Post("/tags", tagHandler.Create)
+			})
+
+			// Data Query
+			r.Get("/data", dataHandler.Query)
+
+			// Control
 			r.Group(func(r chi.Router) {
 				r.Use(RequireRole("admin", "operator"))
 				r.Post("/control", controlHandler.Send)
@@ -115,6 +120,13 @@ func NewRouter(store *postgres.Store, influxReader *influxdb.Reader, influxWrite
 				r.Use(RequireRole("admin", "operator", "auditor"))
 				r.Get("/control/logs", controlHandler.Logs)
 			})
+		})
+
+		// Tags không theo device
+		r.Group(func(r chi.Router) {
+			r.Use(RequireRole("admin"))
+			r.Put("/tags/{tagID}", tagHandler.Update)
+			r.Delete("/tags/{tagID}", tagHandler.Delete)
 		})
 
 		// --- Alerts (xem: admin, auditor; tạo/sửa/xóa/thao tác: admin) ---

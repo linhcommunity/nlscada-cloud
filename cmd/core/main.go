@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"nlscada-cloud/internal/api"
 	"nlscada-cloud/internal/config"
+	"nlscada-cloud/internal/control"
 	"nlscada-cloud/internal/db/influxdb"
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/ingest"
@@ -53,8 +54,8 @@ func main() {
 	}
 	defer influxReader.Close()
 
-	// Ingest service
-	ingestService := ingest.NewService(pgStore, influxWriter)
+	// Khai báo ingestService trước để dùng trong closure
+	var ingestService *ingest.Service
 	// Chuẩn bị handlers cho MQTT
 	handlers := map[string]struct {
 		Qos     byte
@@ -86,15 +87,20 @@ func main() {
 	// Tạo MQTT client (sẽ tự connect và subscribe trong OnConnect)
 	mqttClient := mqtt.NewClient(cfg.MQTTBroker, "core-service", cfg.MQTTUser, cfg.MQTTPass, handlers)
 	defer mqttClient.Disconnect()
+
+	controlService := control.NewService(pgStore, mqttClient)
+	// WebSocket Hub
+	wsHub := ws.NewHub(pgStore, cfg.JWTSecret, controlService)
+	go wsHub.Run()
+
+	// Gán ingestService sau khi có wsHub
+	ingestService = ingest.NewService(pgStore, influxWriter, wsHub)
+
 	// Bắt đầu kiểm tra offline định kỳ
 	ingestService.StartOfflineChecker(30 * time.Second)
 
-	// WebSocket Hub
-	wsHub := ws.NewHub(pgStore, cfg.JWTSecret)
-	go wsHub.Run()
-
 	// Router
-	router := api.NewRouter(pgStore, influxReader, influxWriter, cfg.JWTSecret, wsHub, mqttClient)
+	router := api.NewRouter(pgStore, influxReader, influxWriter, cfg.JWTSecret, wsHub, mqttClient, controlService)
 	err = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		log.Printf("Route: %s %s", method, route)
 		return nil

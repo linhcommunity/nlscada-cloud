@@ -1,12 +1,18 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
+	"nlscada-cloud/internal/control"
 	"nlscada-cloud/internal/db/postgres"
 	"nlscada-cloud/internal/models"
+	"nlscada-cloud/internal/mqtt"
 	"nlscada-cloud/internal/response"
 
 	"github.com/go-chi/chi/v5"
@@ -15,7 +21,9 @@ import (
 
 // ControlHandler xử lý các endpoint điều khiển thiết bị
 type ControlHandler struct {
-	store *postgres.Store
+	store          *postgres.Store
+	mqttClient     *mqtt.Client
+	controlService *control.Service
 }
 
 // ControlRequest là body gửi lệnh điều khiển
@@ -27,8 +35,8 @@ type ControlRequest struct {
 type controlRequest = ControlRequest
 
 // NewControlHandler tạo instance mới
-func NewControlHandler(store *postgres.Store) *ControlHandler {
-	return &ControlHandler{store: store}
+func NewControlHandler(store *postgres.Store, mqttClient *mqtt.Client, controlService *control.Service) *ControlHandler {
+	return &ControlHandler{store: store, mqttClient: mqttClient}
 }
 
 // @Summary Gửi lệnh điều khiển
@@ -104,12 +112,26 @@ func (h *ControlHandler) Send(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, "FAILED_TO_CREATE_CONTROL_LOG", "Không thể tạo nhật ký điều khiển")
 		return
 	}
+	// Sau khi tạo control_log thành công:
+	logEntryID := logEntry.ID.String()
 
-	// TODO: Publish MQTT đến topic site/{siteID}/device/{deviceID}/cmd
-	// go func() {
-	//     mqttClient.Publish(fmt.Sprintf("site/%s/device/%s/cmd", membership.SiteID, deviceID), 1, payload)
-	//     // Cập nhật trạng thái SENT
-	// }()
+	// Publish MQTT command trong goroutine
+	if h.mqttClient != nil {
+		go func() {
+			topic := fmt.Sprintf("site/%s/device/%s/cmd", membership.SiteID.String(), deviceID.String())
+			payload := fmt.Sprintf(`{"log_id":"%s","tag_name":"%s","value":"%s","timestamp":%d}`,
+				logEntryID, input.TagName, input.Value, time.Now().Unix())
+			h.mqttClient.Publish(topic, 1, payload)
+			log.Printf("Published MQTT command: topic=%s payload=%s", topic, payload)
+
+			// Cập nhật trạng thái SENT
+			_, err := h.store.Pool.Exec(context.Background(),
+				"UPDATE control_logs SET status = 'SENT', sent_at = NOW() WHERE id = $1", logEntry.ID)
+			if err != nil {
+				log.Printf("Failed to update control_log status to SENT: %v", err)
+			}
+		}()
+	}
 
 	response.JSON(w, http.StatusCreated, logEntry)
 }
